@@ -1,15 +1,10 @@
-from sklearn.model_selection import TimeSeriesSplit
 import tensorflow as tf
-from tensorflow.examples.tutorials.mnist import input_data
-from tensorflow.contrib import rnn
 import numpy as np
 import pandas as pd
 import pickle
 from collections import Counter
 from sklearn.model_selection import train_test_split
-from tensorflow.python.framework import ops
-from tensorflow.python.ops import array_ops
-from tensorflow.python.ops import math_ops
+
 
 with open("../stocks.pickle", 'rb') as f:
     data = pickle.load(f)
@@ -114,7 +109,7 @@ def neural_network_model(data, feature_count):
     hidden_layer_1 = {'weights': tf.Variable(tf.random_normal([feature_count, n_nodes_hl1])),
                       'biases': tf.Variable(tf.random_normal([n_nodes_hl1]))}
     hidden_layer_2 = {'weights': tf.Variable(tf.random_normal([n_nodes_hl1, n_nodes_hl2])),
-                  'biases': tf.Variable(tf.random_normal([n_nodes_hl2]))}
+                      'biases': tf.Variable(tf.random_normal([n_nodes_hl2]))}
     output_layer = {'weights': tf.Variable(tf.random_normal([n_nodes_hl2, n_classes])),
                     'biases': tf.Variable(tf.random_normal([n_classes]))}
 
@@ -128,14 +123,31 @@ def neural_network_model(data, feature_count):
 
 
 def train_neural_network(x, y, features, labels):
+
     X_train, X_test, y_train, y_test = train_test_split(features, labels, test_size=0.2)
 
+    print(len(y_train), len(y_train[y_train == 1]), len(y_train[y_train == 0]))
+
+    # oversampling
+    # ypos = y_train[y_train == 1]
+    # xpos = X_train[y_train == 1]
+    # X_train = pd.concat([xpos, X_train])
+    # y_train = pd.concat([ypos, y_train])]
+
+    # undersampling
+    ypos = y_train[y_train == 0]
+    ypos = ypos[len(ypos)//2 :]
+    xpos = X_train[y_train == 0]
+    xpos = xpos[len(xpos)//2 :]
+    y_train = y_train.loc[y_train.index.difference(ypos.index)]
+    X_train = X_train.loc[X_train.index.difference(xpos.index)]
+    print(len(y_train), len(y_train[y_train == 1]), len(y_train[y_train == 0]))
+
     prediction = neural_network_model(x, len(features.columns))
-    cost = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=tf.transpose(prediction), labels=tf.cast(y, tf.int64))
-                          + tf.nn.sparse_softmax_cross_entropy_with_logits(logits=tf.transpose(1- prediction),
-                                                                         labels=tf.cast(1-y, tf.int64)))
+
+    cost = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=tf.transpose(prediction), labels=tf.cast(y, tf.int64)))
     optimizer = tf.train.AdamOptimizer().minimize(cost)
-    hm_epochs = 10
+    hm_epochs = 8
 
     with tf.Session() as sess:
         sess.run(tf.initialize_all_variables())
@@ -148,7 +160,7 @@ def train_neural_network(x, y, features, labels):
                 i, c = sess.run([optimizer, cost], feed_dict = {x:epoch_x, y:epoch_y})
                 epoch_loss += c
 
-            print('Epoch', epoch, ' completed out of ', hm_epochs, ' loss: ', epoch_loss)
+            print('Epoch', epoch + 1, ' completed out of ', hm_epochs, ' loss: ', epoch_loss)
 
         # InvalidArgumentError (see above for traceback): Expected dimension in the range [-1, 1), but got 1
         # hence don't do argmax for y
@@ -159,7 +171,15 @@ def train_neural_network(x, y, features, labels):
 
         accuracy = tf.reduce_mean(tf.cast(correct, tf.float64))
 
-        print('Accuracy: ', sess.run(accuracy, feed_dict={x: X_test, y: y_test}))
+        print('Accuracy : ', sess.run(accuracy, feed_dict={x: X_test, y: y_test}))
+
+        y1 = y_test[y_test == 1]
+        X1 = X_test[y_test == 1]
+        print('Accuracy 1: ', sess.run(accuracy, feed_dict={x: X1, y: y1}))
+
+        y0 = y_test[y_test == 0]
+        X0 = X_test[y_test == 0]
+        print('Accuracy 0: ', sess.run(accuracy, feed_dict={x: X0, y: y0}))
 
 
 x = tf.placeholder(tf.float32, [None, len(features.columns)])
