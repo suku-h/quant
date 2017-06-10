@@ -1,7 +1,7 @@
 import pickle
 import time
 import datetime as dt
-import os
+import copy
 import pandas_datareader as pdr
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -9,29 +9,61 @@ from matplotlib import style
 import numpy as np
 import copy
 from numpy import genfromtxt
-#
-# def getPSAR(df, ini_accleration_factor, max_accleration_factor):
-# # extreme point is high of low (it gets corrected as we move to next value)
-#     df.exteme_point.iloc[0] = df['Low'].iloc[0]
-#     df.trend.iloc[0] = 'Bear'
-#     # we started extremepoint as low hence the psar will be high
-#     df['PSAR'].iloc[0] = df['High'].iloc[0]
-#     df.acceleration.iloc[0] = ini_accleration_factor
-#     df.psar_ep_af = (df['PSAR'].iloc[0] - df.exteme_point.iloc[0]) * df.acceleration.iloc[0]
-#     # IF(L5=”falling”,MAX(K5-I5,C5,C4),IF(L5=”rising”,MIN(K5-I5,D5,D4),””))
-#
-#     df['PSAR'][1:] = np.where(df.trend.shift(-1) == 'Bear', np.max)
-#
-#     psar = df['Low']
-#     ep = df['High']
-#     af = af_ini
-#     ep_psar = ep - psar
-#     ep_psar_acc = af * ep_psar
-#     trend = np.where(psar.lt(df['High']), 'bull', np.where(psar.gt(df['Low']), 'bear', ''))
-#     # IF(AND(L4=”bull”,G4+K4>E5),H4,IF(AND(L4=”bear”,G4+K4<D5),H4,G4+K4))
-#     psar[1:] = np.where((trend.shit(-1) == 'bull' and (psar.shift(-1) + ep_psar_acc.shift(-1)) > df['Low'])
-#                         or (trend.shit(-1) == 'bear' and (psar.shift(-1) + ep_psar_acc.shift(-1)) < df['High']), ep.shift(-1), psar.shift(-1) + ep_psar_acc)
-#     #  H5 =IF(AND(L5=”bull”,D5>H4),D5,IF(AND(L5=”bull”,D5<=H4),H4,IF(AND(L5=”bear”,E5<H4),E5,IF(AND(
+
+def getPSAR(df, ini_acceleration_factor, max_acceleration_factor):
+    df['PSAR'] = df['Low']
+    df['EP'] = df['Low']
+    df['acceleration'] = ini_acceleration_factor
+    df['direction'] = 'bull'
+    df['temp_psar'] = df['PSAR']
+
+    for i in range(1, len(df)):
+        if df['direction'].iloc[i-1] == 'bull' and df['EP'].iloc[i-1] < df['High'].iloc[i]:
+            af = np.minimum(df['acceleration'].iloc[i - 1] + ini_acceleration_factor, max_acceleration_factor)
+            df['EP'].iloc[i] = df['High'].iloc[i]
+        elif df['direction'].iloc[i-1] == 'bear' and df['EP'].iloc[i-1] > df['Low'].iloc[i]:
+            af = np.minimum(df['acceleration'].iloc[i - 1] + ini_acceleration_factor, max_acceleration_factor)
+            df['EP'].iloc[i] = df['Low'].iloc[i]
+        else:
+            af = df['acceleration'].iloc[i - 1]
+
+        df['temp_psar'].iloc[i] = df['PSAR'].iloc[i-1] + af * (df['EP'].iloc[i] - df['PSAR'].iloc[i-1])
+
+        if df['direction'].iloc[i-1] == 'bull' and df['Low'].iloc[i] < df['temp_psar'].iloc[i]:
+            df['direction'].iloc[i] = 'bear'
+            df['EP'].iloc[i] = df['Low'].iloc[i]
+        elif df['direction'].iloc[i-1] == 'bear' and df['High'].iloc[i] > df['temp_psar'].iloc[i]:
+            df['direction'].iloc[i] = 'bull'
+            df['EP'].iloc[i] = df['High'].iloc[i]
+        else:
+            df['direction'].iloc[i] = df['direction'].iloc[i-1]
+
+        if df['direction'].iloc[i] == df['direction'].iloc[i-1]:
+            if (df['direction'].iloc[i] == 'bull' and df['EP'].iloc[i] < df['High'].iloc[i]) or \
+                    (df['direction'].iloc[i] == 'bear' and df['EP'].iloc[i] > df['Low'].iloc[i]):
+                df['acceleration'].iloc[i] = np.minimum(df['acceleration'].iloc[i - 1] + ini_acceleration_factor, max_acceleration_factor)
+            else:
+                df['acceleration'].iloc[i] = df['acceleration'].iloc[i - 1]
+        else:
+            df['acceleration'].iloc[i] = ini_acceleration_factor
+
+        if df['acceleration'].iloc[i] == ini_acceleration_factor and df['direction'].iloc[i] == 'bear':
+            df['PSAR'].iloc[i] = df['High'].iloc[i-1]
+        elif df['acceleration'].iloc[i] == ini_acceleration_factor and df['direction'].iloc[i] == 'bull':
+            df['PSAR'].iloc[i] = df['Low'].iloc[i-1]
+        else:
+            df['PSAR'].iloc[i] = df['PSAR'].iloc[i - 1] + df['acceleration'].iloc[i] * (df['EP'].iloc[i] - df['PSAR'].iloc[i - 1])
+
+
+    print(df)
+    return df['PSAR']
+
+
+def getWilliamPercentR(df, period):
+    df['Highest_High'] = df['High'].rolling(window=period).max()
+    df['Lowest_Low'] = df['Low'].rolling(window=period).min()
+    df['William %R'] = 100 * (df['Highest_High'] - df['Close'])/(df['Highest_High'] - df['Lowest_Low'])
+    return df['William %R']
 
 
 def getRSI(df, period):
@@ -108,8 +140,16 @@ def getWildersEMA(df, period):
     return ema
 
 
+def getChaikinOscillator(df, short_period, long_period):
+    df['Money_Flow_Multiplier'] = (2 * df['Close'] - df['Low'] - df['High'])/(df['High'] - df['Low'])
+    df['Money_Flow_Volume'] = df['Money_Flow_Multiplier'] * df['Volume'].rolling(window=long_period).sum()
+    df['ADL'] = df['ADL'].shift(1) + df['Money_Flow_Volume']
+    df['Chaikin'] = pd.ewma(df['ADL'], span=short_period, freq="D") - pd.ewma(df['ADL'], span=long_period, freq="D")
+    return df['Chaikin']
+
+
 def compile_data():
-    with open("sp500tickers.pickle", 'rb') as f:
+    with open("../sp500tickers.pickle", 'rb') as f:
         tickers = pickle.load(f)
 
     data = {}
@@ -119,7 +159,7 @@ def compile_data():
             filepath = "F:/data/sp500/{}.csv".format(ticker)
             df = pd.read_csv(filepath)
             df.set_index('Date', inplace=True)
-            df.to_csv('aapl2.csv')
+            df.to_csv('aap.csv')
             df.index = pd.to_datetime(df.index)
             ratio = df["Close"] / df["Adj Close"]
             df["Open"] = df["Open"] / ratio
@@ -127,28 +167,32 @@ def compile_data():
             df["Low"] = df["Low"] / ratio
             df["Close"] = df["Adj Close"]
 
-            if ticker == 'AAPL':
-                df.to_csv('aapl.csv')
+            if ticker == 'AAP':
+                df.to_csv('aap.csv')
 
             df.drop(["Adj Close"], axis=1, inplace=True)
 
-            df['MACD'], df['MACD_sign'], df['MACD_diff'] = getMACD(copy.deepcopy(df['Close']), 12, 26, 9)
-            df['ADX'] = getADX(copy.deepcopy(df), 14)
-            df['BBMean'], df['BBUp'], df['BBDown'] = getBBands(copy.deepcopy(df['Close']), 20, 2)
-            #df['Breadth_Thrust'] = getBreadthThrust(copy.deepcopy(df['Close']),10)
-            df['RSI'] = getRSI(df['Close'], 14)
+            # df['MACD'], df['MACD_sign'], df['MACD_diff'] = getMACD(copy.deepcopy(df['Close']), 12, 26, 9)
+            # df['ADX'] = getADX(copy.deepcopy(df), 14)
+            # df['BBMean'], df['BBUp'], df['BBDown'] = getBBands(copy.deepcopy(df['Close']), 20, 2)
+            # #df['Breadth_Thrust'] = getBreadthThrust(copy.deepcopy(df['Close']),10)
+            # df['RSI'] = getRSI(df['Close'], 14)
+
+            # df['PSAR'] = getPSAR(df, 0.02, 0.2)
+            df['William %R'] = getWilliamPercentR(df, 10)
+            df['Chaikin'] = getChaikinOscillator(df, 3, 10)
             df.dropna(inplace=True)
 
             df.drop(["Open", "High", "Low"], axis=1, inplace=True)
             data[ticker] = df
 
             if ticker == 'AAP':
-                print(df.tail())
+                print(df.tail(100))
         except Exception as e:
             print(e)
 
     panel = pd.Panel(data)
-    print(panel['AAP'].head())
+    print(panel['AAPL'].tail(100))
     panel.to_pickle('stocks.pickle')
 
 
