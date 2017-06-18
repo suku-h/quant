@@ -77,7 +77,7 @@ def compile_data():
             for i in range(len(op)):
                 if op[i] > buy_signal:
                     for j in range(i+1, len(op)):
-                        if op[j] < sell_signal or j - i == 60:
+                        if op[j] < sell_signal:
                             amt[i] = vals[j] - vals[i]
                             gain[i] = (vals[j] - vals[i]) * 100 / vals[i]
                             day_diff[i] = j - i
