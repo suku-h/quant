@@ -12,8 +12,8 @@ from sklearn.gaussian_process import GaussianProcessClassifier
 from sklearn.gaussian_process.kernels import RBF
 from sklearn.ensemble import VotingClassifier, RandomForestClassifier, BaggingClassifier
 
-all_data = 'sp500_joined_closes.csv'
-with open("stocks.pickle", 'rb') as f:
+all_data = '../sp500_joined_closes.csv'
+with open("../stocks.pickle", 'rb') as f:
     data = pickle.load(f)
 
 
@@ -27,7 +27,6 @@ def process_data(ticker):
     for i in range(1, hm_days + 1):
         # the -i will give the future 1 day data
         df['{}_{}d pred'.format(ticker, i)] = np.round((df['Close'].shift(-i) - df['Close']) / df['Close'], decimals=2)
-        df['{}_{}d'.format(ticker, i)] = (df['Close'] - df['Close'].shift(i)) / df['Close'].shift(i)
 
     df.fillna(0, inplace=True)
     return df
