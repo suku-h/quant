@@ -13,6 +13,7 @@ total_res = np.zeros(12)
 pos = []
 neg = []
 
+
 def assessCurve(pd_curve, window, isIndicator, **kwargs):
     sell_condition = kwargs.get('sell_condition', None)
     buy_condition = kwargs.get('buy_condition', None)
@@ -26,45 +27,45 @@ def assessCurve(pd_curve, window, isIndicator, **kwargs):
     cc = df['curve_crawl'].values
 
     for i in range(1, len(c) - 1):
-        if (c[i-1] > c[i] > c[i+1]) or (c[i-1] < c[i] < c[i+1]):
-            if cc[i-1] == 100:
+        if (c[i - 1] > c[i] > c[i + 1]) or (c[i - 1] < c[i] < c[i + 1]):
+            if cc[i - 1] == 100:
                 cc[i] = 1
             else:
-                cc[i] = cc[i-1] + 1
-        elif c[i] > c[i-1] and c[i] > c[i+1]:
+                cc[i] = cc[i - 1] + 1
+        elif c[i] > c[i - 1] and c[i] > c[i + 1]:
             cc[i] = 100
         else:
             cc[i] = 0
 
 
-    #print(df)
+    # print(df)
 
     ass = np.zeros(len(c))
 
-    # for i in cc makes it run till the highest value in cc
-    if not isIndicator:
-        for i in range(1, len(c) - window - 14):
-            if cc[i] == 100:
-                # print('d', i,cc[i-20:i+20])
-                for j in range(i + 8, i + window):
-                    if cc[j] == 100:  # and np.max(cc[j+1:j+10]) != 100:
-                        if c[i] < c[j] and c[j] > 1.1 * c[i]:
-                            ass[j + 4: j + 14] = -1
-                        elif c[j] < c[i] and c[i] > 1.1 * c[j]:
-                            ass[j + 4: j + 14] = 1
-    else:
-        for i in range(1, len(c) - window - 14):
-            if cc[i] == 100:
-                # print('d', i,cc[i-20:i+20])
-                for j in range(i + 8, i + window):
-                    if cc[j] == 100:  # and np.max(cc[j+1:j+10]) != 100:
-                        if c[i] > c[j] > sell_condition and c[i] > 1.1 * c[j]:
-                            ass[j + 4: j + 14] = -1
-                        elif buy_condition < c[i] < c[j] and c[j] > 1.1 * c[i]:
-                            ass[j + 4: j + 14] = 1
+    # np.where returns a tuple (a,b) where b is the position
+    # so (a,b)[0][:] returns a numpy array of only positions
+    # this should finish calculating significantly faster than the previous nested loops
+    cc100 = np.where(cc == 100)[0][:]
+    for i in range(len(cc100) - 1):
+        j = i + 1
+        while j < len(cc100) and cc100[j] < cc100[i] + 8:
+            j += 1
+
+        while j < len(cc100) and cc100[j] < cc100[i] + window:
+            k = 14
+            if not isIndicator and c[cc100[i]] * 1.1 < c[cc100[j]]:
+                ass[cc100[j] + 4: cc100[j] + 14] = -1
+            elif isIndicator and sell_condition < c[cc100[j]] * 1.1 < c[cc100[i]]:
+                ass[cc100[j] + 4: cc100[j] + 14] = -1
+            elif not isIndicator and c[cc100[j]] * 1.1 < c[cc100[i]]:
+                ass[cc100[j] + 4: cc100[j] + 14] = 1
+            elif isIndicator and c[cc100[i]] < c[cc100[j]] * 1.1 < buy_condition:
+                ass[cc100[j] + 4: cc100[j] + 14] = 1
+            else:
+                k = 1
+            j += k
 
     return ass[:]
-
 
 
 def compile_data():
@@ -96,7 +97,8 @@ def compile_data():
             df['cADX'] = np.where(df.ADX > 65, 2, np.where(df.ADX > 30, 1, 0))
 
             df['RSI'] = talib.RSI(df['Close'].values, 14)
-            df['cRSI'] = assessCurve(df['RSI'], window=window, buy_condition=40, sell_condition=65, isIndicator=True)# np.where(df.RSI > 65, -1, np.where(df.RSI < 30, 1, 0))
+            df['cRSI'] = assessCurve(df['RSI'], window=window, buy_condition=40, sell_condition=65,
+                                     isIndicator=True)  # np.where(df.RSI > 65, -1, np.where(df.RSI < 30, 1, 0))
 
             # CCI(high, low, close, timeperiod=14)
             df['CCI'] = talib.CCI(df['High'].values, df['Low'].values, df['Close'].values, 14)
@@ -104,26 +106,30 @@ def compile_data():
 
             # WILLR(high, low, close, timeperiod=14)
             df['WILLR'] = talib.WILLR(df['High'].values, df['Low'].values, df['Close'].values, 14)
-            df['cWILLR'] = assessCurve(df['WILLR'], window=window, buy_condition = -80, sell_condition = -20, isIndicator=True)# np.where(df.WILLR < -80, 1, np.where(df.WILLR > -20, -1, 0))
+            df['cWILLR'] = assessCurve(df['WILLR'], window=window, buy_condition=-80, sell_condition=-20,
+                                       isIndicator=True)  # np.where(df.WILLR < -80, 1, np.where(df.WILLR > -20, -1, 0))
 
             # TRIX(close, timeperiod=30)
             # df['TRIX'] = talib.TRIX(df['Close'].values, 30)
             # df['cTRIX'] = np.where(df['TRIX'].shift(1) > df['TRIX'] and df['TRIX'].shift(-1) > df['TRIX'] and  df['TRIX'].shift(1) < 0 and df['TRIX'].shift(-1) < 0, 2,
-            #                        np.where(df['TRIX'].shift(1) < df['TRIX'] and df['TRIX'].shift(-1) < df['TRIX'] and df['TRIX'].shift(1) > 0 and df['TRIX'].shift(-1) > 0, -2, 0))
+            # np.where(df['TRIX'].shift(1) < df['TRIX'] and df['TRIX'].shift(-1) < df['TRIX'] and df['TRIX'].shift(1) > 0 and df['TRIX'].shift(-1) > 0, -2, 0))
 
 
             # CMO(close, timeperiod=14)
             df['CMO'] = talib.CMO(df['Close'].values, 14)
-            df['cCMO'] = assessCurve(df['CMO'], window=window, buy_condition=-50, sell_condition=50, isIndicator=True)# np.where(df.CMO > 50, -1, np.where(df.CMO < -50, 1, 0))
+            df['cCMO'] = assessCurve(df['CMO'], window=window, buy_condition=-50, sell_condition=50,
+                                     isIndicator=True)  # np.where(df.CMO > 50, -1, np.where(df.CMO < -50, 1, 0))
 
             # AROONOSC(high, low, timeperiod=14)
             df['AROONOSC'] = talib.AROONOSC(df['High'].values, df['Low'].values, 14)
-            df['cAROONOSC'] = assessCurve(df['AROONOSC'], window=window, buy_condition=-50, sell_condition=50, isIndicator=True)#np.where(df.AROONOSC > 50, -1, np.where(df.AROONOSC < -50, 1, 0))
+            df['cAROONOSC'] = assessCurve(df['AROONOSC'], window=window, buy_condition=-50, sell_condition=50,
+                                          isIndicator=True)  #np.where(df.AROONOSC > 50, -1, np.where(df.AROONOSC < -50, 1, 0))
 
             df.dropna(inplace=True)
 
             df['temp'] = df['cRSI'] + df['cCCI'] + df['cWILLR'] + df['cCMO'] + df['cAROONOSC']
-            df['Res'] = np.where(df['temp'] > 0, df['temp'] + df['cADX'], np.where(df['temp'] < 0, df['temp'] - df['cADX'], 0))
+            df['Res'] = np.where(df['temp'] > 0, df['temp'] + df['cADX'],
+                                 np.where(df['temp'] < 0, df['temp'] - df['cADX'], 0))
 
             df.drop(["Open", "High", "Low", "Volume"], axis=1, inplace=True)
 
@@ -131,6 +137,7 @@ def compile_data():
                 res[i + 7] += len(df['Res'][df['Res'] == i])
 
             op = df['Res'].values
+            close_op = df['acClose'].values
             vals = df['Close'].values
             amt = np.zeros(len(df['Res']))
             gain = np.zeros(len(df['Res']))
@@ -139,15 +146,13 @@ def compile_data():
             buy_signal = 3
             sell_signal = -3
             for i in range(len(op)):
-                if op[i] > buy_signal:
-                    for j in range(i+1, len(op)):
+                if op[i] > buy_signal and close_op == 1:
+                    for j in range(i + 1, len(op)):
                         if op[j] < sell_signal:
                             amt[i] = vals[j] - vals[i]
                             gain[i] = (vals[j] - vals[i]) * 100 / vals[i]
                             day_diff[i] = j - i
                             break
-
-
 
             df['Amt'] = amt[:]
             df['Gain'] = gain[:]
@@ -165,9 +170,8 @@ def compile_data():
             total_res[7] += df['Day_Diff'][df['Gain'] > 0].sum()
             total_res[8] += df['Day_Diff'][df['Gain'] < 0].sum()
             total_res[9] += len(df['Res'][df['Res'] > buy_signal])
-            total_res[10] += len(df['acClose'][df['acClose'] == 1])//10
-            total_res[11] += len(df['acClose'][df['acClose'] == -1])//10
-
+            total_res[10] += len(df['acClose'][df['acClose'] == 1]) // 10
+            total_res[11] += len(df['acClose'][df['acClose'] == -1]) // 10
 
             if ticker == 'AAP':
                 print(df.tail(80))
@@ -181,8 +185,14 @@ def compile_data():
                 print('avg + day diff', df['Day_Diff'][df['Gain'] > 0].mean())
                 print('avg - day diff', df['Day_Diff'][df['Gain'] < 0].mean())
                 print('Total buys', len(df['Gain'][df['Gain'] != 0]))
-                print('ass +', len(df['acClose'][df['acClose'] == 1])//10)
-                print('ass -', len(df['acClose'][df['acClose'] == -1])//10)
+                print('ass +', len(df['acClose'][df['acClose'] == 1]) // 10)
+                print('ass -', len(df['acClose'][df['acClose'] == -1]) // 10)
+
+                fig = plt.figure()
+                ax1 = plt.subplot2grid((1, 1), (0, 0))
+                df['RSI'].plot(kind='line', ax=ax1, figsize=(12, 10), title='rsi')
+                # plt.xlabel('Date')
+                # plt.ylabel('Close')
 
                 x = range(len(df['Close']))
                 close = df['Close'].values
@@ -201,6 +211,7 @@ def compile_data():
         except Exception as e:
             print(e)
 
+
 compile_data()
 #
 # pos = pd.concat(pos)
@@ -213,11 +224,11 @@ print('Total days', total_res[0])
 print('Total buys', total_res[9])
 print('+', total_res[1])
 print('-', total_res[2])
-print('avg gain', total_res[3]/total_res[9])
-print('avg + gain', total_res[4]/total_res[1])
-print('avg - gain', total_res[5]/total_res[2])
-print('avg day diff', total_res[6]/total_res[9])
-print('avg + day diff', total_res[7]/total_res[1])
-print('avg - day diff', total_res[8]/total_res[2])
+print('avg gain', total_res[3] / total_res[9])
+print('avg + gain', total_res[4] / total_res[1])
+print('avg - gain', total_res[5] / total_res[2])
+print('avg day diff', total_res[6] / total_res[9])
+print('avg + day diff', total_res[7] / total_res[1])
+print('avg - day diff', total_res[8] / total_res[2])
 print('ass +', total_res[10])
 print('ass -', total_res[11])
