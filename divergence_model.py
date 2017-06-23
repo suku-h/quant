@@ -13,7 +13,7 @@ total_res = np.zeros(12)
 pos = []
 neg = []
 
-def assessCurve(pd_curve, window, **kwargs):
+def assessCurve(pd_curve, window, isIndicator, **kwargs):
     sell_condition = kwargs.get('sell_condition', None)
     buy_condition = kwargs.get('buy_condition', None)
 
@@ -42,24 +42,25 @@ def assessCurve(pd_curve, window, **kwargs):
     ass = np.zeros(len(c))
 
     # for i in cc makes it run till the highest value in cc
-    for i in range(1, len(c) - window):
-        if cc[i] == 100:
-            # print('d', i,cc[i-20:i+20])
-            for j in range(i + 8, i + window):
-                if cc[j] == 100: # and np.max(cc[j+1:j+10]) != 100:
-                    if c[i] < c[j]:
-                        if sell_condition is not None:
-                            if c[i] > sell_condition:
-                                #print('x')
-                                ass[j + 4: j + 14] = -1
-                        else:
+    if not isIndicator:
+        for i in range(1, len(c) - window - 14):
+            if cc[i] == 100:
+                # print('d', i,cc[i-20:i+20])
+                for j in range(i + 8, i + window):
+                    if cc[j] == 100:  # and np.max(cc[j+1:j+10]) != 100:
+                        if c[i] < c[j] and c[j] > 1.1 * c[i]:
                             ass[j + 4: j + 14] = -1
-
-                    else:
-                        if buy_condition is not None:
-                            if c[i] < buy_condition:
-                                ass[j + 4: j + 14] = 1
-                        else:
+                        elif c[j] < c[i] and c[i] > 1.1 * c[j]:
+                            ass[j + 4: j + 14] = 1
+    else:
+        for i in range(1, len(c) - window - 14):
+            if cc[i] == 100:
+                # print('d', i,cc[i-20:i+20])
+                for j in range(i + 8, i + window):
+                    if cc[j] == 100:  # and np.max(cc[j+1:j+10]) != 100:
+                        if c[i] > c[j] > sell_condition and c[i] > 1.1 * c[j]:
+                            ass[j + 4: j + 14] = -1
+                        elif buy_condition < c[i] < c[j] and c[j] > 1.1 * c[i]:
                             ass[j + 4: j + 14] = 1
 
     return ass[:]
@@ -89,21 +90,21 @@ def compile_data():
 
             curve = savgol_filter(df['Close'].values, 21, 5)
             df['cClose'] = curve[:]
-            df['acClose'] = assessCurve(df['cClose'], window=window)
+            df['acClose'] = assessCurve(df['cClose'], window=window, isIndicator=False)
 
             df['ADX'] = talib.ADX(df['High'].values, df['Low'].values, df['Close'].values, 14)
             df['cADX'] = np.where(df.ADX > 65, 2, np.where(df.ADX > 30, 1, 0))
 
             df['RSI'] = talib.RSI(df['Close'].values, 14)
-            df['cRSI'] = assessCurve(df['RSI'], window=window, buy_condition=40, sell_condition=65)# np.where(df.RSI > 65, -1, np.where(df.RSI < 30, 1, 0))
+            df['cRSI'] = assessCurve(df['RSI'], window=window, buy_condition=40, sell_condition=65, isIndicator=True)# np.where(df.RSI > 65, -1, np.where(df.RSI < 30, 1, 0))
 
             # CCI(high, low, close, timeperiod=14)
             df['CCI'] = talib.CCI(df['High'].values, df['Low'].values, df['Close'].values, 14)
-            df['cCCI'] = assessCurve(df['CCI'], window=window, buy_condition=0, sell_condition=100)
+            df['cCCI'] = assessCurve(df['CCI'], window=window, buy_condition=0, sell_condition=100, isIndicator=True)
 
             # WILLR(high, low, close, timeperiod=14)
             df['WILLR'] = talib.WILLR(df['High'].values, df['Low'].values, df['Close'].values, 14)
-            df['cWILLR'] = assessCurve(df['WILLR'], window=window, buy_condition = -80, sell_condition = -20)# np.where(df.WILLR < -80, 1, np.where(df.WILLR > -20, -1, 0))
+            df['cWILLR'] = assessCurve(df['WILLR'], window=window, buy_condition = -80, sell_condition = -20, isIndicator=True)# np.where(df.WILLR < -80, 1, np.where(df.WILLR > -20, -1, 0))
 
             # TRIX(close, timeperiod=30)
             # df['TRIX'] = talib.TRIX(df['Close'].values, 30)
@@ -113,11 +114,11 @@ def compile_data():
 
             # CMO(close, timeperiod=14)
             df['CMO'] = talib.CMO(df['Close'].values, 14)
-            df['cCMO'] = assessCurve(df['CMO'], window=window, buy_condition=-50, sell_condition=50)# np.where(df.CMO > 50, -1, np.where(df.CMO < -50, 1, 0))
+            df['cCMO'] = assessCurve(df['CMO'], window=window, buy_condition=-50, sell_condition=50, isIndicator=True)# np.where(df.CMO > 50, -1, np.where(df.CMO < -50, 1, 0))
 
             # AROONOSC(high, low, timeperiod=14)
             df['AROONOSC'] = talib.AROONOSC(df['High'].values, df['Low'].values, 14)
-            df['cAROONOSC'] = assessCurve(df['AROONOSC'], window=window, buy_condition=-50, sell_condition=50)#np.where(df.AROONOSC > 50, -1, np.where(df.AROONOSC < -50, 1, 0))
+            df['cAROONOSC'] = assessCurve(df['AROONOSC'], window=window, buy_condition=-50, sell_condition=50, isIndicator=True)#np.where(df.AROONOSC > 50, -1, np.where(df.AROONOSC < -50, 1, 0))
 
             df.dropna(inplace=True)
 
