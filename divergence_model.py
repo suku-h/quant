@@ -3,8 +3,6 @@ import talib
 import pandas as pd
 from scipy.signal import savgol_filter
 import matplotlib.pyplot as plt
-import copy
-
 import numpy as np
 
 res = np.zeros(15).astype(int)
@@ -38,9 +36,8 @@ def assessCurve(pd_curve, window, isIndicator, **kwargs):
             cc[i] = 0
 
 
-    # print(df)
-
     ass = np.zeros(len(c))
+    s = np.zeros(len(c))
 
     # np.where returns a tuple (a,b) where b is the position
     # so (a,b)[0][:] returns a numpy array of only positions
@@ -53,19 +50,27 @@ def assessCurve(pd_curve, window, isIndicator, **kwargs):
 
         while j < len(cc100) and cc100[j] < cc100[i] + window:
             k = 14
-            if not isIndicator and c[cc100[i]] * 1.1 < c[cc100[j]]:
+            if not isIndicator and c[cc100[i]] * 1.2 < c[cc100[j]]:
+                s[cc100[i]] = -1
+                s[cc100[j]] = -2
                 ass[cc100[j] + 4: cc100[j] + 14] = -1
-            elif isIndicator and sell_condition < c[cc100[j]] * 1.1 < c[cc100[i]]:
+            elif isIndicator and sell_condition < c[cc100[j]] * 1.2 < c[cc100[i]]:
+                s[cc100[i]] = -1
+                s[cc100[j]] = -2
                 ass[cc100[j] + 4: cc100[j] + 14] = -1
-            elif not isIndicator and c[cc100[j]] * 1.1 < c[cc100[i]]:
+            elif not isIndicator and c[cc100[j]] * 1.2 < c[cc100[i]]:
+                s[cc100[i]] = 1
+                s[cc100[j]] = 2
                 ass[cc100[j] + 4: cc100[j] + 14] = 1
-            elif isIndicator and c[cc100[i]] < c[cc100[j]] * 1.1 < buy_condition:
+            elif isIndicator and c[cc100[i]] < c[cc100[j]] * 1.2 < buy_condition:
+                s[cc100[i]] = 1
+                s[cc100[j]] = 2
                 ass[cc100[j] + 4: cc100[j] + 14] = 1
             else:
                 k = 1
             j += k
 
-    return ass[:]
+    return ass[:], s[:]
 
 
 def compile_data():
@@ -73,12 +78,14 @@ def compile_data():
         tickers = pickle.load(f)
 
     # without count the ticker name is incorrect
+    window = 50
+
     for count, ticker in enumerate(tickers):
-        try:
+        if ticker == 'AAP':
+        # try:
             filepath = "F:/data/sp500/{}.csv".format(ticker)
             df = pd.read_csv(filepath)
             df.set_index('Date', inplace=True)
-            df.index = pd.to_datetime(df.index)
             ratio = df["Close"] / df["Adj Close"]
             df["Open"] = df["Open"] / ratio
             df["High"] = df["High"] / ratio
@@ -86,27 +93,26 @@ def compile_data():
             df["Volume"] = df["Volume"] / ratio
             df["Close"] = df["Adj Close"]
 
-            window = 40
             df.drop(["Adj Close"], axis=1, inplace=True)
 
             curve = savgol_filter(df['Close'].values, 21, 5)
             df['cClose'] = curve[:]
-            df['acClose'] = assessCurve(df['cClose'], window=window, isIndicator=False)
+            df['acClose'], df['sClose'] = assessCurve(df['cClose'], window=window, isIndicator=False)
 
             df['ADX'] = talib.ADX(df['High'].values, df['Low'].values, df['Close'].values, 14)
             df['cADX'] = np.where(df.ADX > 65, 2, np.where(df.ADX > 30, 1, 0))
 
             df['RSI'] = talib.RSI(df['Close'].values, 14)
-            df['cRSI'] = assessCurve(df['RSI'], window=window, buy_condition=40, sell_condition=65,
+            df['cRSI'], df['sRSI'] = assessCurve(df['RSI'], window=window, buy_condition=40, sell_condition=65,
                                      isIndicator=True)  # np.where(df.RSI > 65, -1, np.where(df.RSI < 30, 1, 0))
 
             # CCI(high, low, close, timeperiod=14)
             df['CCI'] = talib.CCI(df['High'].values, df['Low'].values, df['Close'].values, 14)
-            df['cCCI'] = assessCurve(df['CCI'], window=window, buy_condition=0, sell_condition=100, isIndicator=True)
+            df['cCCI'], df['sCCI'] = assessCurve(df['CCI'], window=window, buy_condition=0, sell_condition=100, isIndicator=True)
 
             # WILLR(high, low, close, timeperiod=14)
             df['WILLR'] = talib.WILLR(df['High'].values, df['Low'].values, df['Close'].values, 14)
-            df['cWILLR'] = assessCurve(df['WILLR'], window=window, buy_condition=-80, sell_condition=-20,
+            df['cWILLR'], df['sWILLR'] = assessCurve(df['WILLR'], window=window, buy_condition=-80, sell_condition=-20,
                                        isIndicator=True)  # np.where(df.WILLR < -80, 1, np.where(df.WILLR > -20, -1, 0))
 
             # TRIX(close, timeperiod=30)
@@ -117,12 +123,12 @@ def compile_data():
 
             # CMO(close, timeperiod=14)
             df['CMO'] = talib.CMO(df['Close'].values, 14)
-            df['cCMO'] = assessCurve(df['CMO'], window=window, buy_condition=-50, sell_condition=50,
+            df['cCMO'], df['sCMO'] = assessCurve(df['CMO'], window=window, buy_condition=-50, sell_condition=50,
                                      isIndicator=True)  # np.where(df.CMO > 50, -1, np.where(df.CMO < -50, 1, 0))
 
             # AROONOSC(high, low, timeperiod=14)
             df['AROONOSC'] = talib.AROONOSC(df['High'].values, df['Low'].values, 14)
-            df['cAROONOSC'] = assessCurve(df['AROONOSC'], window=window, buy_condition=-50, sell_condition=50,
+            df['cAROONOSC'], df['sAROONOSC'] = assessCurve(df['AROONOSC'], window=window, buy_condition=-50, sell_condition=50,
                                           isIndicator=True)  #np.where(df.AROONOSC > 50, -1, np.where(df.AROONOSC < -50, 1, 0))
 
             df.dropna(inplace=True)
@@ -131,7 +137,6 @@ def compile_data():
             df['Res'] = np.where(df['temp'] > 0, df['temp'] + df['cADX'],
                                  np.where(df['temp'] < 0, df['temp'] - df['cADX'], 0))
 
-            df.drop(["Open", "High", "Low", "Volume"], axis=1, inplace=True)
 
             for i in range(-7, 8):
                 res[i + 7] += len(df['Res'][df['Res'] == i])
@@ -143,12 +148,12 @@ def compile_data():
             gain = np.zeros(len(df['Res']))
             day_diff = np.zeros(len(df['Res'])).astype(int)
 
-            buy_signal = 3
-            sell_signal = -3
+            buy_signal = 2
+            sell_signal = -2
             for i in range(len(op)):
-                if op[i] > buy_signal and close_op == 1:
+                if op[i] > buy_signal and close_op[i] == 1:
                     for j in range(i + 1, len(op)):
-                        if op[j] < sell_signal:
+                        if op[j] < sell_signal and close_op[j] == -1:
                             amt[i] = vals[j] - vals[i]
                             gain[i] = (vals[j] - vals[i]) * 100 / vals[i]
                             day_diff[i] = j - i
@@ -175,6 +180,7 @@ def compile_data():
 
             if ticker == 'AAP':
                 print(df.tail(80))
+
                 print('Total days', len(df['Gain']))
                 print('+', len(df['Gain'][df['Gain'] > 0]))
                 print('-', len(df['Gain'][df['Gain'] < 0]))
@@ -189,17 +195,44 @@ def compile_data():
                 print('ass -', len(df['acClose'][df['acClose'] == -1]) // 10)
 
                 fig = plt.figure()
-                ax1 = plt.subplot2grid((1, 1), (0, 0))
-                df['RSI'].plot(kind='line', ax=ax1, figsize=(12, 10), title='rsi')
-                # plt.xlabel('Date')
-                # plt.ylabel('Close')
+                plt.title('AAP')
+                print(df['sClose'])
+                print(len(df['sClose'][df['sClose'] == -1]),len(df['sClose'][df['sClose'] == 1]))
+                date = df.index.values
+                ax1 = plt.subplot2grid((8, 1), (0, 0), rowspan=4, colspan=1)
+                y = df['Close'].values
+                # plot does not work with dates hence use plot_date
+                ax1.plot_date(date, y, '-', linewidth=1, color='m')
+                plt.ylabel('Price')
+                n = df['sClose'].values
+                for i in range(len(n)):
+                    if n[i] == 1:
+                        for j in range(window):
+                            if n[i+j] == 2:
+                                ax1.plot_date([date[i], date[i+j]], [y[i], y[i+j]], '-', lw=1, color='r')
+                                break
+                    elif n[i] == -1:
+                        for j in range(window):
+                            if n[i + j] == -2:
+                                ax1.plot([date[i], date[i + j]], [y[i], y[i + j]], '-', lw=1, color='g')
+                                break
 
-                x = range(len(df['Close']))
-                close = df['Close'].values
+                ax2 = plt.subplot2grid((8, 1), (4, 0), rowspan=2, colspan=1, sharex=ax1)
+                ax2.plot_date(date, df['RSI'].values, '-', linewidth= 1, color='gray')
+                plt.ylabel('RSI')
+                ax3 = plt.subplot2grid((8, 1), (6, 0), rowspan=2, colspan=1, sharex=ax1)
+                ax3.plot_date(date, df['CCI'].values, '-', linewidth=1)
+                plt.ylabel('CCI')
+                plt.xlabel('Date')
+
+                for label in ax3.xaxis.get_ticklabels():
+                    label.set_rotation(45)
+
+
                 # plt.plot(x, close/10)
                 # plt.plot(x, curve/10, color='red')
                 # plt.plot(x, df['acClose'].values, color='green')
-                # plt.show()
+                plt.show()
 
             df['ticker'] = ticker
             df.reset_index(inplace=True)
@@ -208,8 +241,8 @@ def compile_data():
             pos.append(df[df['Gain'] > 0])
             neg.append(df[df['Gain'] < 0])
 
-        except Exception as e:
-            print(e)
+        # except Exception as e:
+        #     print(e)
 
 
 compile_data()
