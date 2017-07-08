@@ -14,19 +14,26 @@ def compile_data():
     data = {}
 
     for count, ticker in enumerate(tickers):
-        try:
             filepath = "F:/data/sp500/{}.csv".format(ticker)
             df = pd.read_csv(filepath)
             df.set_index('Date', inplace=True)
             df.index = pd.to_datetime(df.index)
-            ratio = df["Close"] / df["Adj Close"]
+            ratio = 1
+            try:
+                ratio = df["Close"] / df["Adj Close"]
+                df["Close"] = df["Adj Close"]
+                df.drop(["Adj Close"], axis=1, inplace=True)
+            except:
+                pass
+
             df["Open"] = df["Open"] / ratio
             df["High"] = df["High"] / ratio
             df["Low"] = df["Low"] / ratio
             df["Volume"] = df["Volume"] / ratio
-            df["Close"] = df["Adj Close"]
 
-            df.drop(["Adj Close"], axis=1, inplace=True)
+            df['maV'] = df['Volume'].rolling(50).mean()
+
+            _, __, df['MACDHist'] = talib.MACD(df['Close'].values)
 
             df['ADX'] = talib.ADX(df['High'].values, df['Low'].values, df['Close'].values, 14)
             df['cADX'] = np.where(df.ADX > 65, 2, np.where(df.ADX > 25, 1, 0))
@@ -60,7 +67,6 @@ def compile_data():
             df['temp'] = df['cRSI'] + df['cCCI'] + df['cWILLR'] + df['cCMO'] + df['cAROONOSC']
             df['Res'] = np.where(df['temp'] > 0, df['temp'] + df['cADX'], np.where(df['temp'] < 0, df['temp'] - df['cADX'], 0))
 
-            df.drop(["Open", "High", "Low", "Volume"], axis=1, inplace=True)
             data[ticker] = df
 
             for i in range(-6, 7):
@@ -70,14 +76,17 @@ def compile_data():
             vals = df['Close'].values
             amt = np.zeros(len(df['Res']))
             gain = np.zeros(len(df['Res']))
+            hist = df['MACDHist'].values
+            mav = df['maV'].values
+            v = df['Volume'].values
             day_diff = np.zeros(len(df['Res'])).astype(int)
 
             buy_signal = 3
             sell_signal = -3
             for i in range(len(op)):
-                if op[i] > buy_signal:
+                if op[i] > buy_signal and hist[i] < 0:
                     for j in range(i+1, len(op)):
-                        if op[j] < sell_signal:
+                        if op[j] < sell_signal and hist[j] > 0 and v[j] > mav[j]:
                             amt[i] = vals[j] - vals[i]
                             gain[i] = (vals[j] - vals[i]) * 100 / vals[i]
                             day_diff[i] = j - i
@@ -115,9 +124,6 @@ def compile_data():
                 print('avg + day diff', df['Day_Diff'][df['Gain'] > 0].mean())
                 print('avg - day diff', df['Day_Diff'][df['Gain'] < 0].mean())
                 print('Total buys', len(df['Gain'][df['Gain'] != 0]))
-
-        except Exception as e:
-            print(e)
 
     panel = pd.Panel(data)
 
