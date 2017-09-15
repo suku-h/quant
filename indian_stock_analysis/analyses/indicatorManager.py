@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import csv
 import math
-import time
 
 # Check the answer https://stackoverflow.com/a/20627316/5512020
 # to prevent the warning: A value is trying to be set on a copy of a slice from a DataFrame.
@@ -17,14 +16,6 @@ for i in range(len(nifty500)):
     if nifty500[i] == 'FAGBEARING':
         nifty500[i] = 'SCHAEFFLER'
 
-
-def analysePrevDays(prevCloses):
-    plusCount = 0
-    for i in range(1, len(prevCloses)):
-        if prevCloses[i] > prevCloses[i - 1]:
-            plusCount += 1
-
-    return plusCount
 
 def analyseStrategy(res):
     totalValue = 0
@@ -162,8 +153,7 @@ def getIndicatorValues(indicator, needs, df, period, fastperiod=0, slowperiod=0,
         return getattr(talib, indicator)(df['High'].values, df['Low'].values, df['Close'].values)
 
 
-def analyze_indicator(indicator, max_buy_val, min_sell_val, period, fastperiod=0, slowperiod=0, timeperiod1=7,
-                      timeperiod2=14, timeperiod3=28):
+def analyze_indicator(indicator, max_buy_val, min_sell_val, period, fastperiod=0, slowperiod=0, timeperiod1=7, timeperiod2=14, timeperiod3=28):
 
     needs = getColumnKey(indicator)
 
@@ -180,7 +170,6 @@ def analyze_indicator(indicator, max_buy_val, min_sell_val, period, fastperiod=0
         df['Res'] = np.where(df[indicator] < max_buy_val, 1, np.where(df[indicator] > min_sell_val, -1, 0))
         df['maV'] = df['Volume'].rolling(100).mean()
         df['anaV'] = np.where(df['Volume'] > 1.25 * df['maV'], 1, 0)
-        df['Count'] = np.arange(len(df))[:]
 
         try:
             _, __, df['MACDHist'] = talib.MACD(df['Close'].values)
@@ -201,12 +190,6 @@ def analyze_indicator(indicator, max_buy_val, min_sell_val, period, fastperiod=0
         buy_signal = 0
         sell_signal = 0
         closePosition = -1
-
-        anaDF = df[['Count', 'Res', 'Close']][((df['Res'] > buy_signal) & (df['MACDHist'] < 0) & (df['anaV'] == 1)) |
-                      ((df['Res'] < sell_signal) & (df['MACDHist'] > 0) & (df['anaV'] == 1))]
-
-        if ticker == 'RELIANCE':
-            print(anaDF)
 
         for i in range(len(op)):
             if op[i] > buy_signal and hist[i] < 0 and anaV[i] == 1 and i > closePosition:
@@ -296,10 +279,10 @@ def analyze_indicator(indicator, max_buy_val, min_sell_val, period, fastperiod=0
 
     # check for diff append and extend https://stackoverflow.com/a/252711/5512020
     row.extend([element for element in total_res])
-    csvRow = ','.join(map(str, row))
+    # without newline = '' , a row is skipped in csv
     with open('analysis.csv', 'a', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(csvRow)
+        writer.writerow(row)
     f.close()
 
 
@@ -314,6 +297,4 @@ def analyseRSI():
 
 
 
-st = time.time()
 analyseRSI()
-print('Total time', time.time() - st)
