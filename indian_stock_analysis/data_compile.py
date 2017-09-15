@@ -149,9 +149,10 @@ def addNonTradedPrices():
     for i in range(len(nifty500)):
         refdf = pd.read_csv('F:/data/nse500/all/RELIANCE.csv')
         newdf = refdf['Date']
-        df = pd.read_csv('F:/data/nse500/all/' + nifty500[i] + '.csv')
-        refIndex = newdf[newdf == df['Date'].iloc[0]].index.tolist()[0]
         try:
+            df = pd.read_csv('F:/data/nse500/all/' + nifty500[i] + '.csv')
+            refIndex = newdf[newdf == df['Date'].iloc[0]].index.tolist()[0]
+
             newdf = newdf[newdf.index >= refIndex].to_frame()
             # this will just copy the values of df['open']
             # and leave NaN if len(newdf['Open']) < len(df['Open'])
@@ -166,7 +167,7 @@ def addNonTradedPrices():
             newdf['Volume'] = np.where(isNaN(newdf['Volume']), 0, newdf['Volume'])
             newdf['Symbol'] = np.where(isNaN(newdf['Symbol']), newdf['Symbol'].shift(1), newdf['Symbol'])
             newdf['Turnover'] = np.where(isNaN(newdf['Turnover']), newdf['Turnover'].shift(1), newdf['Turnover'])
-            newdf['Volume'] = np.where(isNaN(newdf['Trades']), 0, newdf['Trades'])
+            newdf['Trades'] = np.where(isNaN(newdf['Trades']), 0, newdf['Trades'])
 
             if 'Unnamed: 0' in newdf.columns:
                 newdf.drop('Unnamed: 0', axis = 1, inplace = True)
@@ -227,7 +228,33 @@ def adjustData():
                     df = adjustBonusSplit(actions[j][0], ratio, df)
 
 
+def removeLowVolumePeriods():
+    if not os.path.exists('F:/data/nse500/selected'):
+        os.makedirs('F:/data/nse500/selected')
 
-mergeEQBEData()
-addNonTradedPrices()
-adjustData()
+    for i in range(len(nifty500)):
+        try:
+            df = pd.read_csv('F:/data/nse500/all/' + nifty500[i] + '.csv')
+            df['prod'] = df['Close'] * df['Volume']
+            subdf = df[df['prod'] < 400000]
+            if len(subdf) > 0:
+                # this gives the index of the last entry
+                lastLowVolDate = subdf['Date'].iloc[-1]
+                lastLowVolDateSeconds = int(time.mktime(dateparser.parse(lastLowVolDate).timetuple()))
+                df['sec'] = df['Date'].apply(lambda x: int(time.mktime(dateparser.parse(x).timetuple())))
+                selecteddf = df[df['sec'] > lastLowVolDateSeconds]
+                selecteddf.drop(['prod', 'sec'], axis = 1, inplace=True)
+                selecteddf.set_index('Date')
+                selecteddf.to_csv('F:/data/nse500/selected/{}.csv'.format(nifty500[i]), index_label=None)
+            else:
+                df.drop('prod', axis = 1, inplace=True)
+                df.to_csv('F:/data/nse500/selected/{}.csv'.format(nifty500[i]), index=False, index_label=None)
+        except Exception as e:
+            print(e)
+            print(nifty500[i])
+
+
+
+# mergeEQBEData()
+# addNonTradedPrices()
+# removeLowVolumePeriods()
