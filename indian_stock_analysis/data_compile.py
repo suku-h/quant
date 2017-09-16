@@ -4,13 +4,18 @@ import os
 import nsepy
 import numpy as np
 import time
+import glob
 import dateutil.parser as dateparser
 
-data = pd.read_csv('ind_nifty500list.csv')
-nifty500 = data['Symbol'].values
-for i in range(len(nifty500)):
-    if nifty500[i] == 'FAGBEARING':
-        nifty500[i] = 'SCHAEFFLER'
+path =r'F:\data\nse500\indices'
+allFiles = glob.glob(path + "\*.csv")
+data = pd.concat((pd.read_csv(f, index_col=None, header=0) for f in allFiles))
+data.drop_duplicates(inplace=True)
+
+stocks = data['Symbol'].values
+for i in range(len(stocks)):
+    if stocks[i] == 'FAGBEARING':
+        stocks[i] = 'SCHAEFFLER'
 
 
 def get_files(stock, series, check):
@@ -50,11 +55,11 @@ def get_data():
     if not os.path.exists('F:/data/nse500/BE'):
         os.makedirs('F:/data/nse500/BE')
 
-    for i in range(len(nifty500)):
-        get_files(nifty500[i], 'EQ', check=False)
+    for i in range(len(stocks)):
+        get_files(stocks[i], 'EQ', check=False)
 
-    for i in range(len(nifty500)):
-        get_files(nifty500[i], 'BE', check=False)
+    for i in range(len(stocks)):
+        get_files(stocks[i], 'BE', check=False)
 
 
 def extractCorpActions():
@@ -112,11 +117,11 @@ def mergeEQBEData():
     if not os.path.exists('F:/data/nse500/all'):
         os.makedirs('F:/data/nse500/all')
 
-    for i in range(len(nifty500)):
+    for i in range(len(stocks)):
         try:
-            df = pd.read_csv('F:/data/nse500/BE/' + nifty500[i] + '.csv')
+            df = pd.read_csv('F:/data/nse500/BE/' + stocks[i] + '.csv')
             df['sec'] = df['Date'].apply(lambda x: dt.strptime(x, "%Y-%m-%d").timestamp())
-            eqdf = pd.read_csv('F:/data/nse500/EQ/' + nifty500[i] + '.csv')
+            eqdf = pd.read_csv('F:/data/nse500/EQ/' + stocks[i] + '.csv')
             eqdf['sec'] = eqdf['Date'].apply(lambda x: dt.strptime(x, "%Y-%m-%d").timestamp())
 
             # this will put eqdf below df
@@ -124,18 +129,18 @@ def mergeEQBEData():
             result.sort_values('sec', na_position='first', inplace=True)
             # dropping single column
             # axis {0 or ‘index’, 1 or ‘columns’}
-            result.to_csv('F:/data/nse500/all/{}.csv'.format(nifty500[i]), index=False, index_label=None)
+            result.to_csv('F:/data/nse500/all/{}.csv'.format(stocks[i]), index=False, index_label=None)
         except:
-            df = pd.read_csv('F:/data/nse500/EQ/' + nifty500[i] + '.csv')
-            df.to_csv('F:/data/nse500/all/{}.csv'.format(nifty500[i]), index=False, index_label=None)
+            df = pd.read_csv('F:/data/nse500/EQ/' + stocks[i] + '.csv')
+            df.to_csv('F:/data/nse500/all/{}.csv'.format(stocks[i]), index=False, index_label=None)
 
 
 def get_undownloaded_stocks():
-    for i in range(len(nifty500)):
-        if not os.path.exists('F:/data/nse500/EQ/' + nifty500[i] + '.csv'):
-            get_files(nifty500[i], 'EQ', False)
-        if not os.path.exists('F:/data/nse500/BE/' + nifty500[i] + '.csv'):
-            get_files(nifty500[i], 'BE', False)
+    for i in range(len(stocks)):
+        if not os.path.exists('F:/data/nse500/EQ/' + stocks[i] + '.csv'):
+            get_files(stocks[i], 'EQ', False)
+        if not os.path.exists('F:/data/nse500/BE/' + stocks[i] + '.csv'):
+            get_files(stocks[i], 'BE', False)
 
 def isNaN(df):
     # One of the properties of NaN is that NaN != NaN is True.
@@ -146,11 +151,11 @@ def addNonTradedPrices():
     if not os.path.exists('F:/data/nse500/adjusted'):
         os.makedirs('F:/data/nse500/adjusted')
 
-    for i in range(len(nifty500)):
+    for i in range(len(stocks)):
         refdf = pd.read_csv('F:/data/nse500/all/RELIANCE.csv')
         newdf = refdf['Date']
         try:
-            df = pd.read_csv('F:/data/nse500/all/' + nifty500[i] + '.csv')
+            df = pd.read_csv('F:/data/nse500/all/' + stocks[i] + '.csv')
             refIndex = newdf[newdf == df['Date'].iloc[0]].index.tolist()[0]
 
             newdf = newdf[newdf.index >= refIndex].to_frame()
@@ -172,9 +177,9 @@ def addNonTradedPrices():
             if 'Unnamed: 0' in newdf.columns:
                 newdf.drop('Unnamed: 0', axis = 1, inplace = True)
 
-            newdf.to_csv('F:/data/nse500/adjusted/{}.csv'.format(nifty500[i]), index=False, index_label=None)
+            newdf.to_csv('F:/data/nse500/adjusted/{}.csv'.format(stocks[i]), index=False, index_label=None)
         except:
-            print(nifty500[i])
+            print(stocks[i])
 
 
 def adjustDividend(date, dividend, df):
@@ -202,7 +207,7 @@ def adjustBonusSplit(date, ratio, df):
 def adjustData():
     df_corp_actions = extractCorpActions()
     stockMap = data[['Symbol', 'ISIN Code']].values
-    for i in range(len(nifty500)):
+    for i in range(len(stocks)):
         df_actions = df_corp_actions[(df_corp_actions['ISIN Code'] == stockMap[i][1]) & (df_corp_actions['finVal'] is not None)]
         if len(df_actions) > 0:
             # getting timestamp from a dd-MMM-YYYY date format
@@ -217,7 +222,7 @@ def adjustData():
                     try:
                         df = adjustDividend(actions[j][0], float(actions[j][3]), df)
                     except:
-                        print(nifty500[i], actions[j][3])
+                        print(stocks[i], actions[j][3])
 
                 if actions[j][1] == 'Split':
                     ratio = int(actions[j][3]) / int(actions[j][2])
@@ -232,9 +237,9 @@ def removeLowVolumePeriods():
     if not os.path.exists('F:/data/nse500/selected'):
         os.makedirs('F:/data/nse500/selected')
 
-    for i in range(len(nifty500)):
+    for i in range(len(stocks)):
         try:
-            df = pd.read_csv('F:/data/nse500/all/' + nifty500[i] + '.csv')
+            df = pd.read_csv('F:/data/nse500/all/' + stocks[i] + '.csv')
             df['prod'] = df['Close'] * df['Volume']
             subdf = df[df['prod'] < 400000]
             if len(subdf) > 0:
@@ -245,13 +250,13 @@ def removeLowVolumePeriods():
                 selecteddf = df[df['sec'] > lastLowVolDateSeconds]
                 selecteddf.drop(['prod', 'sec'], axis = 1, inplace=True)
                 selecteddf.set_index('Date')
-                selecteddf.to_csv('F:/data/nse500/selected/{}.csv'.format(nifty500[i]), index_label=None)
+                selecteddf.to_csv('F:/data/nse500/selected/{}.csv'.format(stocks[i]), index_label=None)
             else:
                 df.drop('prod', axis = 1, inplace=True)
-                df.to_csv('F:/data/nse500/selected/{}.csv'.format(nifty500[i]), index=False, index_label=None)
+                df.to_csv('F:/data/nse500/selected/{}.csv'.format(stocks[i]), index=False, index_label=None)
         except Exception as e:
             print(e)
-            print(nifty500[i])
+            print(stocks[i])
 
 
 
