@@ -17,23 +17,23 @@ for i in range(len(nifty500)):
         nifty500[i] = 'SCHAEFFLER'
 
 
-def analyseStrategy(res):
+def analyseStrategy(res, ratio=1):
     totalValue = 0
     effValue = 0
 
-    if not np.isnan(res[9]) or res[9] == 0:
+    if np.isnan(res[9]) or res[9] < 100 * ratio:
         totalValue += 0
-    elif 150 < res[9] < 600:
+    elif 100 * ratio < res[9] < 400 * ratio:
         totalValue += 1
-    elif res[9] < 2000:
+    elif res[9] < 1200 * ratio:
         totalValue += 2
-    elif res[9] < 5000:
+    elif res[9] < 3000 * ratio:
         totalValue += 3
-    elif res[9] < 10000:
+    elif res[9] < 6000 * ratio:
         totalValue += 4
-    elif res[9] < 15000:
+    elif res[9] < 10000 * ratio:
         totalValue += 3
-    elif res[9] < 20000:
+    elif res[9] < 14000 * ratio:
         totalValue += 2
     elif not np.isnan(res[9]):
         totalValue += 1
@@ -154,7 +154,8 @@ def getIndicatorValues(indicator, needs, df, period, fastperiod=0, slowperiod=0,
 
 
 def analyze_indicator(indicator, max_buy_val, min_sell_val, period, fastperiod=0, slowperiod=0, timeperiod1=7, timeperiod2=14, timeperiod3=28):
-
+    # everytime there is new data, find this number
+    totalDataPoints = 1402558
     needs = getColumnKey(indicator)
 
     # without count the ticker name is incorrect
@@ -218,22 +219,22 @@ def analyze_indicator(indicator, max_buy_val, min_sell_val, period, fastperiod=0
         total_res[9] += len(df['Gain'][(df['Gain'] > 0) | (df['Gain'] < 0)])
         total_res[10] += len(df['Sell_Days'][df['Sell_Days'] > 0])
 
-        if ticker == 'RELIANCE':
-            print(df[indicator])
-            print(df['anaV'], df['MACDHist'], df['Res'])
-            print(len(df[(df['MACDHist'] < 0) & (df['anaV'] == 1) & (df['Res'] > 0)]))
-            print(len(df['Res'][df['Res'] > 0]), len(df['Res'][df['Res'] < 0]))
-            print('Total days', len(df['Gain']))
-            print('+', len(df['Gain'][df['Gain'] > 0]))
-            print('-', len(df['Gain'][df['Gain'] < 0]))
-            print('avg gain', df['Gain'][(df['Gain'] > 0) | (df['Gain'] < 0)].mean())
-            print('avg + gain', df['Gain'][df['Gain'] > 0].mean())
-            print('avg - gain', df['Gain'][df['Gain'] < 0].mean())
-            print('avg day diff', df['Day_Diff'][(df['Gain'] > 0) | (df['Gain'] < 0)].mean())
-            print('avg + day diff', df['Day_Diff'][df['Gain'] > 0].mean())
-            print('avg - day diff', df['Day_Diff'][df['Gain'] < 0].mean())
-            print('Total buys', len(df['Gain'][df['Gain'] != 0]))
-            print('Total sells', len(df['Sell_Days'][df['Sell_Days'] > 0]))
+        # if ticker == 'RELIANCE':
+        #     print(df[indicator])
+        #     print(df['anaV'], df['MACDHist'], df['Res'])
+        #     print(len(df[(df['MACDHist'] < 0) & (df['anaV'] == 1) & (df['Res'] > 0)]))
+        #     print(len(df['Res'][df['Res'] > 0]), len(df['Res'][df['Res'] < 0]))
+        #     print('Total days', len(df['Gain']))
+        #     print('+', len(df['Gain'][df['Gain'] > 0]))
+        #     print('-', len(df['Gain'][df['Gain'] < 0]))
+        #     print('avg gain', df['Gain'][(df['Gain'] > 0) | (df['Gain'] < 0)].mean())
+        #     print('avg + gain', df['Gain'][df['Gain'] > 0].mean())
+        #     print('avg - gain', df['Gain'][df['Gain'] < 0].mean())
+        #     print('avg day diff', df['Day_Diff'][(df['Gain'] > 0) | (df['Gain'] < 0)].mean())
+        #     print('avg + day diff', df['Day_Diff'][df['Gain'] > 0].mean())
+        #     print('avg - day diff', df['Day_Diff'][df['Gain'] < 0].mean())
+        #     print('Total buys', len(df['Gain'][df['Gain'] != 0]))
+        #     print('Total sells', len(df['Sell_Days'][df['Sell_Days'] > 0]))
 
     total_res[3] = total_res[3] / total_res[9]
     total_res[4] = total_res[4] / total_res[1]
@@ -241,23 +242,24 @@ def analyze_indicator(indicator, max_buy_val, min_sell_val, period, fastperiod=0
     total_res[6] = total_res[6] / total_res[9]
     total_res[7] = total_res[7] / total_res[1]
     total_res[8] = total_res[8] / total_res[2]
-    total_res[13], total_res[14] = analyseStrategy(total_res)
+    total_res[13], total_res[14] = analyseStrategy(total_res, ratio=total_res[0]/totalDataPoints)
 
-    print('Total days', total_res[0])
-    print('Total buys', total_res[9])
-    print('Total sell days', total_res[10])
-    print('+', total_res[1])
-    print('-', total_res[2])
-    print('avg gain', total_res[3])
-    print('avg + gain', total_res[4])
-    print('avg - gain', total_res[5])
-    print('avg day diff', total_res[6])
-    print('avg + day diff', total_res[7])
-    print('avg - day diff', total_res[8])
-    print('stop loss positive count', total_res[11])
-    print('stop loss negative count', total_res[12])
+    # print('Total days', total_res[0])
+    # print('Total buys', total_res[9])
+    # print('Total sell days', total_res[10])
+    # print('+', total_res[1])
+    # print('-', total_res[2])
+    # print('avg gain', total_res[3])
+    # print('avg + gain', total_res[4])
+    # print('avg - gain', total_res[5])
+    # print('avg day diff', total_res[6])
+    # print('avg + day diff', total_res[7])
+    # print('avg - day diff', total_res[8])
+    # print('stop loss positive count', total_res[11])
+    # print('stop loss negative count', total_res[12])
     print('effective value', total_res[13])
     print('total value', total_res[14])
+    print('\n')
 
     row = [indicator, max_buy_val, min_sell_val, period]
 
@@ -286,15 +288,18 @@ def analyze_indicator(indicator, max_buy_val, min_sell_val, period, fastperiod=0
     f.close()
 
 
-def analyseRSI():
-    maxBuyVals = np.array([-50])
-    minSellVals = np.array([50])#,65,70,75])
-    periods = np.array([10])#,12,14,16,18,20])
+def analyseCMO():
+    maxBuyVals = np.array([-35, -40, -45, -50, -55])
+    minSellVals = np.array([35, 40, 45, 50, 55])
+    periods = np.array([10,12,14,16,18,20])
+    count = 0
     for i in range(len(maxBuyVals)):
         for j in range(len(minSellVals)):
             for k in range(len(periods)):
+                count += 1
+                print("CMO Analyses: ", count, maxBuyVals[i], minSellVals[j], periods[k])
                 analyze_indicator(indicator='CMO', max_buy_val=maxBuyVals[i], min_sell_val=minSellVals[j], period=periods[k])
 
 
 
-analyseRSI()
+analyseCMO()
