@@ -5,10 +5,6 @@ import csv
 import math
 import glob
 
-# Check the answer https://stackoverflow.com/a/20627316/5512020
-# to prevent the warning: A value is trying to be set on a copy of a slice from a DataFrame.
-pd.options.mode.chained_assignment = None  # default='warn'
-
 def analyseStrategy(res, ratio=1):
     totalValue = 0
     effValue = 0
@@ -31,7 +27,7 @@ def analyseStrategy(res, ratio=1):
         totalValue += 1
 
 
-    if np.isnan(res[3]) or res[3] < 1:
+    if np.isnan(res[3]) or res[3] < 2.5:
         effValue += 0
     else:
         effValue += math.floor(res[3] - 1.5)
@@ -260,10 +256,8 @@ def analyze_indicator(indicator, file, max_buy_val, min_sell_val, period, fastpe
     # check for diff append and extend https://stackoverflow.com/a/252711/5512020
     row.extend([element for element in result])
     # without newline = '' , a row is skipped in csv
-    with open('analysis.csv', 'a', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(row)
-    f.close()
+    writer = csv.writer(f)
+    writer.writerow(row)
 
 
 def runSinglePeriodIndicatorAnalyses(indicator, maxBuyVals, minSellVals, periods):
@@ -290,9 +284,38 @@ def analyseCMO():
     runSinglePeriodIndicatorAnalyses('CMO', maxBuyVals, minSellVals, periods)
 
 
+def analyseRSI():
+    maxBuyVals = np.array([20, 25, 30, 35, 40])
+    minSellVals = np.array([55, 60, 65, 70, 75])
+    periods = np.array([10,12,14,16,18,20])
+    runSinglePeriodIndicatorAnalyses('RSI', maxBuyVals, minSellVals, periods)
+
+
+def analyseAROONOSC():
+    maxBuyVals = np.array([-40, -45, -50, -55, -60])
+    minSellVals = np.array([40, 45, 50, 55, 60])
+    periods = np.array([10,12,14,16,18,20])
+    runSinglePeriodIndicatorAnalyses('AROONOSC', maxBuyVals, minSellVals, periods)
+
+
+def analyseCCI():
+    maxBuyVals = np.array([-90, -95, -100, -105, -110])
+    minSellVals = np.array([90, 95, 100, 105, 100])
+    periods = np.array([14,16,18,20, 22, 24])
+    runSinglePeriodIndicatorAnalyses('CCI', maxBuyVals, minSellVals, periods)
+
+
+# Check the answer https://stackoverflow.com/a/20627316/5512020
+# to prevent the warning: A value is trying to be set on a copy of a slice from a DataFrame.
+pd.options.mode.chained_assignment = None  # default='warn'
+f = open('analysis.csv', 'a', newline='')
+
 analyseCMO()
+analyseRSI()
+analyseAROONOSC()
+analyseCCI()
 
-
+f.close()
 
 
 
