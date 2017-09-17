@@ -3,19 +3,11 @@ import pandas as pd
 import numpy as np
 import csv
 import math
+import glob
 
 # Check the answer https://stackoverflow.com/a/20627316/5512020
 # to prevent the warning: A value is trying to be set on a copy of a slice from a DataFrame.
 pd.options.mode.chained_assignment = None  # default='warn'
-
-total_res = np.zeros(15)
-
-data = pd.read_csv('../ind_nifty500list.csv')
-nifty500 = data['Symbol'].values
-for i in range(len(nifty500)):
-    if nifty500[i] == 'FAGBEARING':
-        nifty500[i] = 'SCHAEFFLER'
-
 
 def analyseStrategy(res, ratio=1):
     totalValue = 0
@@ -43,7 +35,6 @@ def analyseStrategy(res, ratio=1):
         effValue += 0
     else:
         effValue += math.floor(res[3] - 1.5)
-    totalValue += effValue
 
     eff = res[1] / res[9] if not np.isnan(res[1]) and not np.isnan(res[9]) and res[9] != 0 else 0
     if eff < 0.6:
@@ -153,13 +144,21 @@ def getIndicatorValues(indicator, needs, df, period, fastperiod=0, slowperiod=0,
         return getattr(talib, indicator)(df['High'].values, df['Low'].values, df['Close'].values)
 
 
-def analyze_indicator(indicator, max_buy_val, min_sell_val, period, fastperiod=0, slowperiod=0, timeperiod1=7, timeperiod2=14, timeperiod3=28):
+def analyze_indicator(indicator, file, max_buy_val, min_sell_val, period, fastperiod=0, slowperiod=0, timeperiod1=7, timeperiod2=14, timeperiod3=28):
+    total_res = np.zeros(15)
+    data = pd.read_csv(file)
+    stocks = data['Symbol'].values
+    for i in range(len(stocks)):
+        if stocks[i] == 'FAGBEARING':
+            stocks[i] = 'SCHAEFFLER'
+
+
     # everytime there is new data, find this number
     totalDataPoints = 1402558
     needs = getColumnKey(indicator)
 
     # without count the ticker name is incorrect
-    for count, ticker in enumerate(nifty500):
+    for count, ticker in enumerate(stocks):
         total_df = pd.read_csv("F:/data/nse500/selected/{}.csv".format(ticker))
         total_df.reset_index(inplace=True)
         df = total_df[['Symbol', 'Date', 'Close', 'Open', 'High', 'Low', 'Volume']]
@@ -219,49 +218,26 @@ def analyze_indicator(indicator, max_buy_val, min_sell_val, period, fastperiod=0
         total_res[9] += len(df['Gain'][(df['Gain'] > 0) | (df['Gain'] < 0)])
         total_res[10] += len(df['Sell_Days'][df['Sell_Days'] > 0])
 
-        # if ticker == 'RELIANCE':
-        #     print(df[indicator])
-        #     print(df['anaV'], df['MACDHist'], df['Res'])
-        #     print(len(df[(df['MACDHist'] < 0) & (df['anaV'] == 1) & (df['Res'] > 0)]))
-        #     print(len(df['Res'][df['Res'] > 0]), len(df['Res'][df['Res'] < 0]))
-        #     print('Total days', len(df['Gain']))
-        #     print('+', len(df['Gain'][df['Gain'] > 0]))
-        #     print('-', len(df['Gain'][df['Gain'] < 0]))
-        #     print('avg gain', df['Gain'][(df['Gain'] > 0) | (df['Gain'] < 0)].mean())
-        #     print('avg + gain', df['Gain'][df['Gain'] > 0].mean())
-        #     print('avg - gain', df['Gain'][df['Gain'] < 0].mean())
-        #     print('avg day diff', df['Day_Diff'][(df['Gain'] > 0) | (df['Gain'] < 0)].mean())
-        #     print('avg + day diff', df['Day_Diff'][df['Gain'] > 0].mean())
-        #     print('avg - day diff', df['Day_Diff'][df['Gain'] < 0].mean())
-        #     print('Total buys', len(df['Gain'][df['Gain'] != 0]))
-        #     print('Total sells', len(df['Sell_Days'][df['Sell_Days'] > 0]))
 
-    total_res[3] = total_res[3] / total_res[9]
-    total_res[4] = total_res[4] / total_res[1]
-    total_res[5] = total_res[5] / total_res[2]
-    total_res[6] = total_res[6] / total_res[9]
-    total_res[7] = total_res[7] / total_res[1]
-    total_res[8] = total_res[8] / total_res[2]
-    total_res[13], total_res[14] = analyseStrategy(total_res, ratio=total_res[0]/totalDataPoints)
+    result = np.zeros(12)
+    result[0] = total_res[0]
+    result[1] = total_res[1]
+    result[2] = total_res[2]
+    result[3] = total_res[3] / total_res[9]
+    result[4] = total_res[4] / total_res[1]
+    result[5] = total_res[5] / total_res[2]
+    result[6] = total_res[6] / total_res[9]
+    result[7] = total_res[7] / total_res[1]
+    result[8] = total_res[8] / total_res[2]
+    result[9] = total_res[9]
+    result[10], result[11] = analyseStrategy(result, ratio=total_res[0]/totalDataPoints)
 
-    # print('Total days', total_res[0])
-    # print('Total buys', total_res[9])
-    # print('Total sell days', total_res[10])
-    # print('+', total_res[1])
-    # print('-', total_res[2])
-    # print('avg gain', total_res[3])
-    # print('avg + gain', total_res[4])
-    # print('avg - gain', total_res[5])
-    # print('avg day diff', total_res[6])
-    # print('avg + day diff', total_res[7])
-    # print('avg - day diff', total_res[8])
-    # print('stop loss positive count', total_res[11])
-    # print('stop loss negative count', total_res[12])
-    print('effective value', total_res[13])
-    print('total value', total_res[14])
+    print('effective value', result[10])
+    print('total value', result[11])
     print('\n')
 
-    row = [indicator, max_buy_val, min_sell_val, period]
+    group = file.replace('F:\data\nse500\indices\\','')
+    row = [indicator, group, max_buy_val, min_sell_val, period]
 
     if needs == 4 or needs == 7:
         row.append(fastperiod)
@@ -279,8 +255,10 @@ def analyze_indicator(indicator, max_buy_val, min_sell_val, period, fastperiod=0
         for j in range(5):
             row.append("-")
 
+    # delete numpy elements not in use
+    np.delete(total_res, np.arange(9,13))
     # check for diff append and extend https://stackoverflow.com/a/252711/5512020
-    row.extend([element for element in total_res])
+    row.extend([element for element in result])
     # without newline = '' , a row is skipped in csv
     with open('analysis.csv', 'a', newline='') as f:
         writer = csv.writer(f)
@@ -288,18 +266,35 @@ def analyze_indicator(indicator, max_buy_val, min_sell_val, period, fastperiod=0
     f.close()
 
 
-def analyseCMO():
-    maxBuyVals = np.array([-35, -40, -45, -50, -55])
-    minSellVals = np.array([35, 40, 45, 50, 55])
-    periods = np.array([10,12,14,16,18,20])
+def runSinglePeriodIndicatorAnalyses(indicator, maxBuyVals, minSellVals, periods):
     count = 0
     for i in range(len(maxBuyVals)):
         for j in range(len(minSellVals)):
             for k in range(len(periods)):
-                count += 1
-                print("CMO Analyses: ", count, maxBuyVals[i], minSellVals[j], periods[k])
-                analyze_indicator(indicator='CMO', max_buy_val=maxBuyVals[i], min_sell_val=minSellVals[j], period=periods[k])
+                path = r'F:\data\nse500\indices'
+                allFiles = glob.glob(path + "\*.csv")
+                for f in allFiles:
+                    try:
+                        count += 1
+                        print(indicator + " Analyses: ", f, count, maxBuyVals[i], minSellVals[j], periods[k])
+                        analyze_indicator(indicator=indicator, file=f, max_buy_val=maxBuyVals[i], min_sell_val=minSellVals[j], period=periods[k])
+                    except Exception as e:
+                        print(e)
+                        print(indicator)
 
+
+def analyseCMO():
+    maxBuyVals = np.array([-35, -40, -45, -50, -55])
+    minSellVals = np.array([35, 40, 45, 50, 55])
+    periods = np.array([10,12,14,16,18,20])
+    runSinglePeriodIndicatorAnalyses('CMO', maxBuyVals, minSellVals, periods)
 
 
 analyseCMO()
+
+
+
+
+
+
+
