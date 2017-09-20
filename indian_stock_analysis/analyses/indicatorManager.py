@@ -4,74 +4,21 @@ import numpy as np
 import csv
 import math
 import glob
+import time
 
 
-def analyseStrategy(res, ratio=1):
-    totalValue = 0
-    effValue = 0
+def analyseStrategy(res):
+    if np.isnan(res[9]) or res[9] == 0 or np.isnan(res[3]) or res[3] < 0 or np.isnan(res[6]):
+        return 0
 
-    if np.isnan(res[9]) or res[9] < 100 * ratio:
-        totalValue += 0
-    elif 100 * ratio < res[9] < 400 * ratio:
-        totalValue += 1
-    elif res[9] < 1200 * ratio:
-        totalValue += 2
-    elif res[9] < 3000 * ratio:
-        totalValue += 3
-    elif res[9] < 6000 * ratio:
-        totalValue += 4
-    elif res[9] < 10000 * ratio:
-        totalValue += 3
-    elif res[9] < 14000 * ratio:
-        totalValue += 2
-    elif not np.isnan(res[9]):
-        totalValue += 1
+    trades = 5000 * (res[9]/res[0])
+    sellPrice = 100
+    for i in range(math.floor(trades)):
+        sellPrice *= (1 + res[3] / 100)
 
-    if np.isnan(res[3]) or res[3] < 2.5:
-        effValue += 0
-    else:
-        effValue += math.floor(res[3] - 1.5)
+    sellPrice *= (1 + res[3] * (trades - math.floor(trades))/100)
 
-    eff = res[1] / res[9] if not np.isnan(res[1]) and not np.isnan(res[9]) and res[9] != 0 else 0
-    if eff < 0.6:
-        effValue += 0
-    elif eff < 0.67:
-        effValue += 1
-    elif eff < 0.75:
-        effValue += 2
-    elif eff < 0.8:
-        effValue += 3
-    elif eff < 0.85:
-        effValue += 4
-    elif eff < 0.9:
-        effValue += 5
-    elif eff < 0.93:
-        effValue += 6
-    elif eff < 0.96:
-        effValue += 7
-    else:
-        effValue += 8
-
-    totalValue += effValue
-
-    if np.isnan(res[6]) or res[6] > 120:
-        totalValue += 0
-    elif res[6] > 90:
-        totalValue += 1
-    elif res[6] > 65:
-        totalValue += 2
-    elif res[6] > 45:
-        totalValue += 3
-    elif res[6] > 30:
-        totalValue += 4
-    elif res[6] > 20:
-        totalValue += 5
-    elif res[6] > 13:
-        totalValue += 6
-    else:
-        totalValue += 7
-
-    return effValue, totalValue
+    return math.floor(sellPrice) - 100
 
 
 def getColumnKey(indicator):
@@ -111,39 +58,30 @@ def getColumnKey(indicator):
     return switch.get(indicator)
 
 
-def getIndicatorValues(indicator, needs, df, period, fastperiod=0, slowperiod=0, timeperiod1=7, timeperiod2=14,
-                       timeperiod3=28):
+def getIndicatorValues(indicator, needs, df, period, fastperiod=0, slowperiod=0, timeperiod1=7, timeperiod2=14, timeperiod3=28):
     if needs == 0:
         return getattr(talib, indicator)(df['Close'].values, timeperiod=period)
     elif needs == 1:
         return getattr(talib, indicator)(df['High'].values, df['Low'].values, timeperiod=period)
     elif needs == 2:
-        return getattr(talib, indicator)(df['High'].values, df['Low'].values, df['Close'].values,
-                                         timeperiod=period)
+        return getattr(talib, indicator)(df['High'].values, df['Low'].values, df['Close'].values, timeperiod=period)
     elif needs == 3:
-        return getattr(talib, indicator)(df['Open'].values, df['High'].values, df['Low'].values,
-                                         df['Close'].values)
+        return getattr(talib, indicator)(df['Open'].values, df['High'].values, df['Low'].values, df['Close'].values)
     elif needs == 4:
-        return getattr(talib, indicator)(df['Close'].values, fastperiod=fastperiod,
-                                         slowperiod=slowperiod, matype=0)
+        return getattr(talib, indicator)(df['Close'].values, fastperiod=fastperiod, slowperiod=slowperiod, matype=0)
     elif needs == 5:
-        return getattr(talib, indicator)(df['High'].values, df['Low'].values, df['Close'].values,
-                                         df['Volume'].values, timeperiod=period)
+        return getattr(talib, indicator)(df['High'].values, df['Low'].values, df['Close'].values, df['Volume'].values, timeperiod=period)
     elif needs == 6:
-        return getattr(talib, indicator)(df['Open'].values, df['High'].values, df['Low'].values,
-                                         df['Close'].values, timeperiod1=timeperiod1,
-                                         timeperiod2=timeperiod2, timeperiod3=timeperiod3)
+        return getattr(talib, indicator)(df['Open'].values, df['High'].values, df['Low'].values, df['Close'].values, timeperiod1=timeperiod1, timeperiod2=timeperiod2, timeperiod3=timeperiod3)
     elif needs == 7:
-        return getattr(talib, indicator)(df['High'].values, df['Low'].values, df['Close'].values,
-                                         df['Volume'].values, fastperiod=fastperiod, slowperiod=slowperiod)
+        return getattr(talib, indicator)(df['High'].values, df['Low'].values, df['Close'].values, df['Volume'].values, fastperiod=fastperiod, slowperiod=slowperiod)
     elif needs == 8:
         return getattr(talib, indicator)(df['Close'].values, df['Volume'].values)
     elif needs == 9:
         return getattr(talib, indicator)(df['High'].values, df['Low'].values, df['Close'].values)
 
 
-def analyze_indicator(indicator, file, max_buy_val, min_sell_val, period, fastperiod=0, slowperiod=0, timeperiod1=7,
-                      timeperiod2=14, timeperiod3=28):
+def analyze_indicator(indicator, file, max_buy_val, min_sell_val, period, fastperiod=0, slowperiod=0, timeperiod1=7, timeperiod2=14, timeperiod3=28):
     total_res = np.zeros(15)
     data = pd.read_csv(file)
     stocks = data['Symbol'].values
@@ -152,8 +90,6 @@ def analyze_indicator(indicator, file, max_buy_val, min_sell_val, period, fastpe
             stocks[i] = 'SCHAEFFLER'
 
 
-    # everytime there is new data, find this number
-    totalDataPoints = 1402558
     needs = getColumnKey(indicator)
 
     # without count the ticker name is incorrect
@@ -166,8 +102,7 @@ def analyze_indicator(indicator, file, max_buy_val, min_sell_val, period, fastpe
         # make Volume as double as talib needs it as double/float
         df['Volume'] = df['Volume'].astype(float)
 
-        df[indicator] = getIndicatorValues(indicator, needs, df, period, fastperiod=fastperiod, slowperiod=slowperiod,
-                                           timeperiod1=timeperiod1, timeperiod2=timeperiod2, timeperiod3=timeperiod3)
+        df[indicator] = getIndicatorValues(indicator, needs, df, period, fastperiod=fastperiod, slowperiod=slowperiod,  timeperiod1=timeperiod1, timeperiod2=timeperiod2, timeperiod3=timeperiod3)
         df.dropna(axis=0, inplace=True)
 
         df['Res'] = np.where(df[indicator] < max_buy_val, 1, np.where(df[indicator] > min_sell_val, -1, 0))
@@ -245,14 +180,12 @@ def analyze_indicator(indicator, file, max_buy_val, min_sell_val, period, fastpe
     result[7] = total_res[7] / total_res[1]
     result[8] = total_res[8] / total_res[2]
     result[9] = total_res[9]
-    result[10], result[11] = analyseStrategy(result, ratio=total_res[0] / totalDataPoints)
+    result[10] = analyseStrategy(result)
 
-    print('effective value', result[10])
-    print('total value', result[11])
+    print('Gain', result[10])
     print('\n')
 
     group = file[32 : len(file) - 8]
-    print(group)
     row = [indicator, group, max_buy_val, min_sell_val, period]
 
     if needs == 4 or needs == 7:
@@ -271,8 +204,6 @@ def analyze_indicator(indicator, file, max_buy_val, min_sell_val, period, fastpe
         for j in range(5):
             row.append("-")
 
-    # delete numpy elements not in use
-    np.delete(total_res, np.arange(9, 13))
     # check for diff append and extend https://stackoverflow.com/a/252711/5512020
     row.extend([element for element in result])
     # without newline = '' , a row is skipped in csv
@@ -284,15 +215,15 @@ def analyze_indicator(indicator, file, max_buy_val, min_sell_val, period, fastpe
 
 def runSinglePeriodIndicatorAnalyses(indicator, maxBuyVals, minSellVals, periods):
     count = 0
+    path = r'F:\data\nse500\indices'
+    allFiles = glob.glob(path + "\*.csv")
     for i in range(len(maxBuyVals)):
         for j in range(len(minSellVals)):
             for k in range(len(periods)):
-                path = r'F:\data\nse500\indices'
-                allFiles = glob.glob(path + "\*.csv")
                 for f in allFiles:
                     try:
                         count += 1
-                        print(indicator + " Analyses: ", f, count, maxBuyVals[i], minSellVals[j], periods[k])
+                        print(indicator + " Analyses: ", f[32: len(f) - 8], count, maxBuyVals[i], minSellVals[j], periods[k])
                         analyze_indicator(indicator=indicator, file=f, max_buy_val=maxBuyVals[i],
                                           min_sell_val=minSellVals[j], period=periods[k])
                     except Exception as e:
