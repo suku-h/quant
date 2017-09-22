@@ -4,21 +4,47 @@ import numpy as np
 import csv
 import math
 import glob
-import time
+from datetime import datetime
+from copy import deepcopy
+import operator
 
 
 def analyseStrategy(res):
     if np.isnan(res[9]) or res[9] == 0 or np.isnan(res[3]) or res[3] < 0 or np.isnan(res[6]):
         return 0
 
-    trades = 5000 * (res[9]/res[0])
+    trades = 5000 * (res[9] / res[0])
     sellPrice = 100
     for i in range(math.floor(trades)):
         sellPrice *= (1 + res[3] / 100)
 
-    sellPrice *= (1 + res[3] * (trades - math.floor(trades))/100)
+    sellPrice *= (1 + res[3] * (trades - math.floor(trades)) / 100)
 
     return math.floor(sellPrice) - 100
+
+
+def backTestStrategy(trades):
+    buyDict = {}
+    iniVal = 250000
+    money = deepcopy(iniVal)
+    nav = deepcopy(iniVal)
+    for key, dayTrade in sorted(trades.items(), key=lambda t: datetime.strptime(t[0], "%Y-%m-%d").timestamp()):
+        for stock in dayTrade.sells:
+            money += buyDict.get(stock.symbol)[0] * stock.wap
+            nav += buyDict.get(stock.symbol)[0] * (stock.wap - buyDict.get(stock.symbol)[1])
+            buyDict[stock.symbol] = (0, 0)
+
+        # // gives int division so no decimal
+        max_per_stock = nav // 15
+        sortedBuys = sorted(dayTrade.buys, key=operator.attrgetter('indicatorVal'))
+        for s in sortedBuys:
+            amount = min(max_per_stock, money)
+            buyDict[s.symbol] = (amount // s.wap, s.wap)
+            money -= amount - amount % s.wap
+
+
+    return nav - iniVal
+
 
 
 def getColumnKey(indicator):
@@ -58,7 +84,8 @@ def getColumnKey(indicator):
     return switch.get(indicator)
 
 
-def getIndicatorValues(indicator, needs, df, period, fastperiod=0, slowperiod=0, timeperiod1=7, timeperiod2=14, timeperiod3=28):
+def getIndicatorValues(indicator, needs, df, period, fastperiod=0, slowperiod=0, timeperiod1=7, timeperiod2=14,
+                       timeperiod3=28):
     if needs == 0:
         return getattr(talib, indicator)(df['Close'].values, timeperiod=period)
     elif needs == 1:
@@ -70,18 +97,22 @@ def getIndicatorValues(indicator, needs, df, period, fastperiod=0, slowperiod=0,
     elif needs == 4:
         return getattr(talib, indicator)(df['Close'].values, fastperiod=fastperiod, slowperiod=slowperiod, matype=0)
     elif needs == 5:
-        return getattr(talib, indicator)(df['High'].values, df['Low'].values, df['Close'].values, df['Volume'].values, timeperiod=period)
+        return getattr(talib, indicator)(df['High'].values, df['Low'].values, df['Close'].values, df['Volume'].values,
+                                         timeperiod=period)
     elif needs == 6:
-        return getattr(talib, indicator)(df['Open'].values, df['High'].values, df['Low'].values, df['Close'].values, timeperiod1=timeperiod1, timeperiod2=timeperiod2, timeperiod3=timeperiod3)
+        return getattr(talib, indicator)(df['Open'].values, df['High'].values, df['Low'].values, df['Close'].values,
+                                         timeperiod1=timeperiod1, timeperiod2=timeperiod2, timeperiod3=timeperiod3)
     elif needs == 7:
-        return getattr(talib, indicator)(df['High'].values, df['Low'].values, df['Close'].values, df['Volume'].values, fastperiod=fastperiod, slowperiod=slowperiod)
+        return getattr(talib, indicator)(df['High'].values, df['Low'].values, df['Close'].values, df['Volume'].values,
+                                         fastperiod=fastperiod, slowperiod=slowperiod)
     elif needs == 8:
         return getattr(talib, indicator)(df['Close'].values, df['Volume'].values)
     elif needs == 9:
         return getattr(talib, indicator)(df['High'].values, df['Low'].values, df['Close'].values)
 
 
-def analyze_indicator(indicator, file, max_buy_val, min_sell_val, period, fastperiod=0, slowperiod=0, timeperiod1=7, timeperiod2=14, timeperiod3=28):
+def analyze_indicator(indicator, file, max_buy_val, min_sell_val, period, fastperiod=0, slowperiod=0, timeperiod1=7,
+                      timeperiod2=14, timeperiod3=28):
     total_res = np.zeros(15)
     data = pd.read_csv(file)
     stocks = data['Symbol'].values
@@ -89,20 +120,22 @@ def analyze_indicator(indicator, file, max_buy_val, min_sell_val, period, fastpe
         if stocks[i] == 'FAGBEARING':
             stocks[i] = 'SCHAEFFLER'
 
-
     needs = getColumnKey(indicator)
+
+    trades = {}
 
     # without count the ticker name is incorrect
     for count, ticker in enumerate(stocks):
         total_df = pd.read_csv("F:/data/nse500/selected/{}.csv".format(ticker))
         total_df.reset_index(inplace=True)
-        df = total_df[['Symbol', 'Date', 'Close', 'Open', 'High', 'Low', 'Volume']]
+        df = total_df[['Symbol', 'Date', 'Close', 'Open', 'High', 'Low', 'Volume', 'VWAP']]
         df.set_index(['Symbol', 'Date'], inplace=True)
 
         # make Volume as double as talib needs it as double/float
         df['Volume'] = df['Volume'].astype(float)
 
-        df[indicator] = getIndicatorValues(indicator, needs, df, period, fastperiod=fastperiod, slowperiod=slowperiod,  timeperiod1=timeperiod1, timeperiod2=timeperiod2, timeperiod3=timeperiod3)
+        df[indicator] = getIndicatorValues(indicator, needs, df, period, fastperiod=fastperiod, slowperiod=slowperiod,
+                                           timeperiod1=timeperiod1, timeperiod2=timeperiod2, timeperiod3=timeperiod3)
         df.dropna(axis=0, inplace=True)
 
         df['Res'] = np.where(df[indicator] < max_buy_val, 1, np.where(df[indicator] > min_sell_val, -1, 0))
@@ -117,7 +150,11 @@ def analyze_indicator(indicator, file, max_buy_val, min_sell_val, period, fastpe
         df.dropna(axis=0, inplace=True)
 
         op = df['Res'].values
-        vals = df['Close'].values
+        indicatorVals = df[indicator].values
+        # this creates a numpy array of index tuples (ticker, date)
+        # the date is the 2nd param & hence only date is referred as dates[i][1]
+        dates = df.index.tolist()
+        vals = df['VWAP'].values
         amt = np.zeros(len(df['Res']))
         gain = np.zeros(len(df['Res']))
         day_diff = np.zeros(len(df['Res'])).astype(int)
@@ -129,23 +166,26 @@ def analyze_indicator(indicator, file, max_buy_val, min_sell_val, period, fastpe
         sell_signal = 0
         closePosition = -1
 
-
         # don't check volume as volume already part of the calculation
         if needs == 5 or needs == 7 or needs == 8:
-            for i in range(len(op)):
+            for i in range(len(op) - 1):
                 if op[i] > buy_signal and hist[i] < 0 and i > closePosition:
-                    for j in range(i + 1, len(op)):
+                    addTrade(trades, ticker, dates[i + 1][1], vals[i + 1], indicatorVals[i], True)
+                    for j in range(i + 1, len(op) - 1):
                         if op[j] < sell_signal and hist[j] > 0:
+                            addTrade(trades, ticker, dates[j + 1][1], vals[j + 1], indicatorVals[j], False)
                             amt[j] = vals[j] - vals[i]
                             gain[j] = (vals[j] - vals[i]) * 100 / vals[i]
                             day_diff[j] = j - i
                             closePosition = j
                             break
         else:
-            for i in range(len(op)):
+            for i in range(len(op) - 1):
                 if op[i] > buy_signal and hist[i] < 0 and anaV[i] == 1 and i > closePosition:
-                    for j in range(i + 1, len(op)):
+                    addTrade(trades, ticker, dates[i + 1][1], vals[i + 1], indicatorVals[i], True)
+                    for j in range(i + 1, len(op) - 1):
                         if op[j] < sell_signal and hist[j] > 0 and anaV[j] == 1:
+                            addTrade(trades, ticker, dates[j + 1][1], vals[j + 1], indicatorVals[j], False)
                             amt[j] = vals[j] - vals[i]
                             gain[j] = (vals[j] - vals[i]) * 100 / vals[i]
                             day_diff[j] = j - i
@@ -182,10 +222,13 @@ def analyze_indicator(indicator, file, max_buy_val, min_sell_val, period, fastpe
     result[9] = total_res[9]
     result[10] = analyseStrategy(result)
 
+    result[11] = backTestStrategy(trades)
+
     print('Gain', result[10])
+    print('NAV', result[11])
     print('\n')
 
-    group = file[32 : len(file) - 8]
+    group = file[32: len(file) - 8]
     row = [indicator, group, max_buy_val, min_sell_val, period]
 
     if needs == 4 or needs == 7:
@@ -213,6 +256,53 @@ def analyze_indicator(indicator, file, max_buy_val, min_sell_val, period, fastpe
     f.close()
 
 
+def addTrade(trades, ticker, date, val, indicatorVal, isBuy):
+    s = Stock()
+    s.symbol = ticker
+    s.indicatorVal = indicatorVal
+    s.wap = val
+
+    if trades.get(date) is not None:
+        ndt = trades.get(date)
+        if isBuy:
+            ndt.buys.append(s)
+        else:
+            ndt.sells.append(s)
+        trades[date] = ndt
+
+    else:
+        dt = DayTrades()
+        dt.date = date
+        if isBuy:
+            dt.buys.append(s)
+        else:
+            dt.sells.append(s)
+        trades[date] = dt
+
+
+class Stock():
+    symbol = ""
+    indicatorVal = 0
+    wap = 0
+
+
+class DayTrades():
+    date = 0
+    moneyIn = 0
+    buys = []
+    sells = []
+    moneyLeft = 0
+
+    # without init the object will have previous values whenever initialized
+    def __init__(self):
+        super().__init__()
+        self.date = 0
+        self.moneyIn = 0
+        self.buys = []
+        self.sells = []
+        self.moneyLeft = 0
+
+
 def runSinglePeriodIndicatorAnalyses(indicator, maxBuyVals, minSellVals, periods):
     count = 0
     path = r'F:\data\nse500\indices'
@@ -223,7 +313,8 @@ def runSinglePeriodIndicatorAnalyses(indicator, maxBuyVals, minSellVals, periods
                 for f in allFiles:
                     try:
                         count += 1
-                        print(indicator + " Analyses: ", f[32: len(f) - 8], count, maxBuyVals[i], minSellVals[j], periods[k])
+                        print(indicator + " Analyses: ", f[32: len(f) - 8], count, maxBuyVals[i], minSellVals[j],
+                              periods[k])
                         analyze_indicator(indicator=indicator, file=f, max_buy_val=maxBuyVals[i],
                                           min_sell_val=minSellVals[j], period=periods[k])
                     except Exception as e:
