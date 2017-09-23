@@ -23,7 +23,7 @@ def analyseStrategy(res):
     return math.floor(sellPrice) - 100
 
 
-def backTestStrategy(trades):
+def backTestStrategy(trades, isNifty500):
     buyDict = {}
     iniVal = 250000
     money = deepcopy(iniVal)
@@ -36,7 +36,8 @@ def backTestStrategy(trades):
             buyDict[stock.symbol] = (0, 0)
 
         # // gives int division so no decimal
-        max_per_stock = nav // 15
+        max_stocks = 15 if isNifty500 else 4
+        max_per_stock = nav // max_stocks
         sortedBuys = sorted(dayTrade.buys, key=operator.attrgetter('indicatorVal'))
         for s in sortedBuys:
             amount = min(max_per_stock, money)
@@ -44,16 +45,6 @@ def backTestStrategy(trades):
             money -= amount - amount % s.wap
 
     return nav - iniVal
-
-
-def trendline(data, order=1):
-    try:
-        coeffs = np.polyfit(data, list(data), order)
-        slope = coeffs[-2]
-        return float(slope)
-    except Exception as e:
-        print(e)
-        print(data)
 
 
 def analyze_indicator(file, max_buy_val, min_sell_val, aroon_period, adx_period, min_adx):
@@ -104,7 +95,7 @@ def analyze_indicator(file, max_buy_val, min_sell_val, aroon_period, adx_period,
 
         # don't check volume as volume already part of the calculation
         for i in range(4, len(op) - 1):
-            if op[i] > buy_signal and trendline(adx[i - 4: i]) > 0 and adx[i] > min_adx and i > closePosition:
+            if op[i] > buy_signal and adx[i] > min_adx and i > closePosition:
                 addTrade(trades, ticker, dates[i + 1][1], vals[i + 1], indicatorVals[i], True)
                 noBuys = False
                 for j in range(i + 1, len(op) - 1):
@@ -154,7 +145,7 @@ def analyze_indicator(file, max_buy_val, min_sell_val, aroon_period, adx_period,
 
     group = file[32: len(file) - 8]
 
-    result[11] = backTestStrategy(trades)
+    result[11] = backTestStrategy(trades, group == '500')
 
     print('Gain', result[10])
     print('NAV', result[11])
@@ -231,8 +222,8 @@ def analyseAROONOSC():
     allFiles = glob.glob(path + "\*.csv")
     for i in range(len(maxBuyVals)):
         for j in range(len(minSellVals)):
-            for k in range(5, len(periods)):
-                for l in range(4, len(adx_periods)):
+            for k in range(len(periods)):
+                for l in range(len(adx_periods)):
                     for m in range(len(adx_mins)):
                         for f in allFiles:
                             try:
