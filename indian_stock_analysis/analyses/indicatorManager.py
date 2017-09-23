@@ -30,8 +30,9 @@ def backTestStrategy(trades):
     nav = deepcopy(iniVal)
     for key, dayTrade in sorted(trades.items(), key=lambda t: datetime.strptime(t[0], "%Y-%m-%d").timestamp()):
         for stock in dayTrade.sells:
-            money += buyDict.get(stock.symbol)[0] * stock.wap
-            nav += buyDict.get(stock.symbol)[0] * (stock.wap - buyDict.get(stock.symbol)[1])
+            # .4% loss due to brockerage and taxes
+            money += buyDict.get(stock.symbol)[0] * stock.wap * 0.996
+            nav += buyDict.get(stock.symbol)[0] * (stock.wap * 0.996- buyDict.get(stock.symbol)[1])
             buyDict[stock.symbol] = (0, 0)
 
         # // gives int division so no decimal
@@ -183,6 +184,7 @@ def analyze_indicator(indicator, file, max_buy_val, min_sell_val, period, fastpe
             for i in range(len(op) - 1):
                 if op[i] > buy_signal and hist[i] < 0 and anaV[i] == 1 and i > closePosition:
                     addTrade(trades, ticker, dates[i + 1][1], vals[i + 1], indicatorVals[i], True)
+                    noBuys = False
                     for j in range(i + 1, len(op) - 1):
                         if op[j] < sell_signal and hist[j] > 0 and anaV[j] == 1:
                             addTrade(trades, ticker, dates[j + 1][1], vals[j + 1], indicatorVals[j], False)
@@ -191,6 +193,12 @@ def analyze_indicator(indicator, file, max_buy_val, min_sell_val, period, fastpe
                             day_diff[j] = j - i
                             closePosition = j
                             break
+
+                        if j == len(op) - 2:
+                            noBuys = True
+
+                    if noBuys:
+                        break
 
         df['Amt'] = amt[:]
         df['Gain'] = gain[:]
@@ -337,8 +345,8 @@ def analyseRSI():
 
 
 def analyseAROONOSC():
-    maxBuyVals = np.array([-40, -45, -50, -55, -60])
-    minSellVals = np.array([40, 45, 50, 55, 60])
+    maxBuyVals = np.array([-40, -50, -60])
+    minSellVals = np.array([40, 50, 60])
     periods = np.array([10, 12, 14, 16, 18, 20])
     runSinglePeriodIndicatorAnalyses('AROONOSC', maxBuyVals, minSellVals, periods)
 
