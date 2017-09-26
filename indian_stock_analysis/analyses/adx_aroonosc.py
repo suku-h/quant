@@ -94,12 +94,12 @@ def analyze_indicator(file, max_buy_val, min_sell_val, aroon_period, adx_period,
         closePosition = -1
 
         # don't check volume as volume already part of the calculation
-        for i in range(4, len(op) - 1):
+        for i in range(len(op) - 1):
             if op[i] > buy_signal and adx[i] > min_adx and i > closePosition:
                 addTrade(trades, ticker, dates[i + 1][1], vals[i + 1], indicatorVals[i], True)
                 noBuys = False
                 for j in range(i + 1, len(op) - 1):
-                    if op[j] < sell_signal and adx[i] > min_adx:
+                    if op[j] < sell_signal and adx[j] > min_adx:
                         addTrade(trades, ticker, dates[j + 1][1], vals[j + 1], indicatorVals[j], False)
                         amt[j] = vals[j] - vals[i]
                         gain[j] = (vals[j] - vals[i]) * 100 / vals[i]
