@@ -176,11 +176,12 @@ def addTrade(trades, ticker, date, val, volume=0, indicatorVal=0, isBuy=True):
 def checkRequirement(req: ReqParam, position: int=None, vals: list=None) -> bool:
     if req.condition == 0:
         return True
+    elif req.condition != 0 and len(vals) == 0:
+        return False
     elif req.condition == 1:
         if position is None or vals is None or req.adx_min is None:
             raise ValueError('Need values for position, adx and adx_min')
         return vals[position] > req.adx_min
-
     elif req.condition == 2:
         if position is None or vals is None:
             raise ValueError('Need values for position and chaikin')
