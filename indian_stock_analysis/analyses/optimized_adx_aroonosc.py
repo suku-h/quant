@@ -401,7 +401,7 @@ def analyseAROONOSC():
         for j in range(len(maxBuyVals)):
             for k in range(len(minSellVals)):
                 if (periods[i] == 6 or periods[i] == 8) and minSellVals[k] == 40:
-                    break
+                    continue
 
                 getRes(maxBuyVals[j], minSellVals[k], periods[i])
 
