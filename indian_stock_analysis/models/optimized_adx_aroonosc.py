@@ -7,6 +7,7 @@ from datetime import datetime
 from copy import deepcopy
 import operator
 import time
+import collections
 
 data = {}
 aroonMap = {}
@@ -59,7 +60,7 @@ class ReqParam():
     # repr function calling return str(self.__dict__)
     # then return only keys that are not None
     def __repr__(self):
-        return str({k: v for k, v in self.__dict__.items() if v is not None})
+        return str({k: v for k, v in collections.OrderedDict(self.__dict__).items() if v is not None})
 
 
 def getStocks(file='F:/data/nse500/indices/ind_nifty500list.csv'):
@@ -376,7 +377,7 @@ def doCalculation(file, max_buy_val, min_sell_val, aroon_period, req1=ReqParam()
     # check for diff append and extend https://stackoverflow.com/a/252711/5512020
     row.extend([element for element in result])
     # without newline = '' , a row is skipped in csv
-    with open('optimized_aroon.csv', 'a', newline='') as f:
+    with open('./analyses/optimized_aroon.csv', 'a', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(row)
     f.close()

@@ -168,6 +168,7 @@ def analyze_indicator(indicator, file, max_buy_val, min_sell_val, period, fastpe
         closePosition = -1
 
         # don't check volume as volume already part of the calculation
+        lastBought = ''
         if needs == 5 or needs == 7 or needs == 8:
             for i in range(len(op) - 1):
                 if op[i] > buy_signal and hist[i] < 0 and i > closePosition:
@@ -258,10 +259,10 @@ def analyze_indicator(indicator, file, max_buy_val, min_sell_val, period, fastpe
     # check for diff append and extend https://stackoverflow.com/a/252711/5512020
     row.extend([element for element in result])
     # without newline = '' , a row is skipped in csv
-    with open('analysis.csv', 'a', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(row)
-    f.close()
+    # with open('analysis.csv', 'a', newline='') as f:
+    #     writer = csv.writer(f)
+    #     writer.writerow(row)
+    # f.close()
 
 
 def addTrade(trades, ticker, date, val, indicatorVal, isBuy):
@@ -369,15 +370,39 @@ def analyseMFI():
 # to prevent the warning: A value is trying to be set on a copy of a slice from a DataFrame.
 pd.options.mode.chained_assignment = None  # default='warn'
 
-analyseCMO()
-analyseRSI()
-analyseAROONOSC()
-analyseCCI()
-analyseMFI()
+# analyseCMO()
+# analyseRSI()
+# analyseAROONOSC()
+# analyseCCI()
+# analyseMFI()
 
 
+# def panalyseMFI():
+#     maxBuyVals = np.array([30])
+#     minSellVals = np.array([70])
+#     periods = np.array([10, 12, 14, 16])
+#     runSinglePeriodIndicatorAnalyses('MFI', maxBuyVals, minSellVals, periods)
+#
+#
+# panalyseMFI()
+
+def p(indicator, maxBuyVals, minSellVals, periods):
+    count = 0
+    path = r'F:\data\nse500\indices'
+    allFiles = glob.glob(path + "\*.csv")
+    for i in range(len(maxBuyVals)):
+        for j in range(len(minSellVals)):
+            for k in range(len(periods)):
+                for f in allFiles:
+                    if f.find("fmcg") > 0:
+                        analyze_indicator(indicator=indicator, file=f, max_buy_val=maxBuyVals[i],
+                                          min_sell_val=minSellVals[j], period=periods[k])
+
+def aanalyseCMO():
+    maxBuyVals = np.array([-50])
+    minSellVals = np.array([55])
+    periods = np.array([20])
+    p('CMO', maxBuyVals, minSellVals, periods)
 
 
-
-
-
+aanalyseCMO()
