@@ -109,9 +109,7 @@ def getRes(max_buy_val, min_sell_val, period):
         df = pd.DataFrame()
         df['AROON'] = aroonMap.get(ticker + '_' + str(period))
 
-        df['Res'] = np.where((df['AROON'] <= max_buy_val) & (df['AROON'].shift(1) <= df['AROON']) & (
-            df['AROON'].shift(1) < max_buy_val), 1, np.where((df['AROON'] >= min_sell_val) & (
-            df['AROON'].shift(1) >= df['AROON']) & (df['AROON'].shift(1) > max_buy_val), -1, 0))
+        df['Res'] = np.where(df['AROON'] <= max_buy_val, 1, np.where(df['AROON'] >= min_sell_val, -1, 0))
 
         resMap[ticker + '_' + str(period) + '_mbv_' + str(max_buy_val) + '_msv_' + str(min_sell_val)] = removeNaN(
             df['Res'].values)
@@ -392,6 +390,11 @@ def analyseAROONOSC():
 
     count = 0
     for i in range(len(periods)):
+        req2 = ReqParam()
+        req2.condition = 5
+        req2.indicatorPeriod = periods[i]
+        req2.isBuy = True
+
         req3 = ReqParam()
         req3.condition = 5
         req3.indicatorPeriod = periods[i]
