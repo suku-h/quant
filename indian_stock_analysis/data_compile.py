@@ -20,7 +20,7 @@ for i in range(len(stocks)):
 
 def get_files(stock, series, check):
     start = dt(2007, 1, 1)
-    end = dt(2017, 8, 11)
+    end = dt(2017, 11, 10)
     checkVal = 1
     if check:
         os.path.exists('F:/data/nse500/' + series + '/{}.csv'.format(stock))
@@ -49,20 +49,18 @@ def get_files(stock, series, check):
 
 
 def get_data():
-    if not os.path.exists('F:/data/nse500/EQ'):
-        os.makedirs('F:/data/nse500/EQ')
-
-    if not os.path.exists('F:/data/nse500/BE'):
-        os.makedirs('F:/data/nse500/BE')
+    print('getting data')
+    if not os.path.exists('F:/data/nse500/ALL'):
+        os.makedirs('F:/data/nse500/ALL')
 
     for i in range(len(stocks)):
-        get_files(stocks[i], 'EQ', check=False)
+        get_files(stocks[i], 'ALL', check=False)
 
-    for i in range(len(stocks)):
-        get_files(stocks[i], 'BE', check=False)
+    print('got all data')
 
 
 def extractCorpActions():
+    print('extracting corporate actions')
     df_corp_actions = pd.read_csv('Corporate_Actions.csv')
     df_scrips = pd.read_csv('ListOfScrips.csv')
 
@@ -109,38 +107,16 @@ def extractCorpActions():
 
     df_corp_actions.drop('temp', axis = 1)
 
+    print('got corporate actions')
+
     return df_corp_actions
-
-
-def mergeEQBEData():
-    # list files in a folder
-    if not os.path.exists('F:/data/nse500/all'):
-        os.makedirs('F:/data/nse500/all')
-
-    for i in range(len(stocks)):
-        try:
-            df = pd.read_csv('F:/data/nse500/BE/' + stocks[i] + '.csv')
-            df['sec'] = df['Date'].apply(lambda x: dt.strptime(x, "%Y-%m-%d").timestamp())
-            eqdf = pd.read_csv('F:/data/nse500/EQ/' + stocks[i] + '.csv')
-            eqdf['sec'] = eqdf['Date'].apply(lambda x: dt.strptime(x, "%Y-%m-%d").timestamp())
-
-            # this will put eqdf below df
-            result = pd.concat([df, eqdf])
-            result.sort_values('sec', na_position='first', inplace=True)
-            # dropping single column
-            # axis {0 or ‘index’, 1 or ‘columns’}
-            result.to_csv('F:/data/nse500/all/{}.csv'.format(stocks[i]), index=False, index_label=None)
-        except:
-            df = pd.read_csv('F:/data/nse500/EQ/' + stocks[i] + '.csv')
-            df.to_csv('F:/data/nse500/all/{}.csv'.format(stocks[i]), index=False, index_label=None)
 
 
 def get_undownloaded_stocks():
     for i in range(len(stocks)):
-        if not os.path.exists('F:/data/nse500/EQ/' + stocks[i] + '.csv'):
-            get_files(stocks[i], 'EQ', False)
-        if not os.path.exists('F:/data/nse500/BE/' + stocks[i] + '.csv'):
-            get_files(stocks[i], 'BE', False)
+        if not os.path.exists('F:/data/nse500/ALL/' + stocks[i] + '.csv'):
+            get_files(stocks[i], 'ALL', False)
+
 
 def isNaN(df):
     # One of the properties of NaN is that NaN != NaN is True.
@@ -148,6 +124,7 @@ def isNaN(df):
 
 
 def addNonTradedPrices():
+    print('adding non traed prices')
     if not os.path.exists('F:/data/nse500/adjusted'):
         os.makedirs('F:/data/nse500/adjusted')
 
@@ -181,6 +158,8 @@ def addNonTradedPrices():
         except:
             print(stocks[i])
 
+    print('added not traded prices')
+
 
 def adjustDividend(date, dividend, df):
     df['Open'] = np.where(df['sec'] <= date, df['Open'] - dividend, df['Open'])
@@ -205,6 +184,7 @@ def adjustBonusSplit(date, ratio, df):
 
 
 def adjustData():
+    print('started adjusting data')
     df_corp_actions = extractCorpActions()
     stockMap = data[['Symbol', 'ISIN Code']].values
     for i in range(len(stocks)):
@@ -232,8 +212,11 @@ def adjustData():
                     ratio = (int(actions[j][3]) + int(actions[j][2])) / int(actions[j][2])
                     df = adjustBonusSplit(actions[j][0], ratio, df)
 
+    print('data manipulation complete')
+
 
 def removeLowVolumePeriods():
+    print('removing low volume stocks')
     if not os.path.exists('F:/data/nse500/selected'):
         os.makedirs('F:/data/nse500/selected')
 
@@ -259,7 +242,13 @@ def removeLowVolumePeriods():
             print(stocks[i])
 
 
+    print('finished removing low volume stocks')
 
-# mergeEQBEData()
-# addNonTradedPrices()
-# removeLowVolumePeriods()
+
+
+get_data()
+get_undownloaded_stocks()
+extractCorpActions()
+addNonTradedPrices()
+removeLowVolumePeriods()
+adjustData()
