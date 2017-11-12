@@ -7,7 +7,7 @@ import time
 import glob
 import dateutil.parser as dateparser
 
-path =r'F:\data\nse500\indices'
+path = r'F:\data\nse500\indices'
 allFiles = glob.glob(path + "\*.csv")
 data = pd.concat((pd.read_csv(f, index_col=None, header=0) for f in allFiles))
 data.drop_duplicates(inplace=True)
@@ -77,10 +77,8 @@ def extractCorpActions():
     df_corp_actions['ISIN Code'] = isin[:]
     df_corp_actions['actions'] = np.where(df_corp_actions['Purpose'].str.contains('Bonus'), 'Bonus',
                                           np.where((df_corp_actions['Purpose'].str.contains('Dividend')) & (
-                                              ~df_corp_actions['Purpose'].str.contains('Dividend'))
-                                              , 'Dividend',
-                                                   np.where(df_corp_actions['Purpose'].str.contains('Split'), 'Split',
-                                                            '')))
+                                              ~df_corp_actions['Purpose'].str.contains('Dividend')), 'Dividend',
+                                                   np.where(df_corp_actions['Purpose'].str.contains('Split'), 'Split', '')))
     df_corp_actions['temp'] = np.where(df_corp_actions['Purpose'].str.contains('Bonus'),
                                        df_corp_actions['Purpose'].str.replace('Bonus issue ', ''), '')
     df_corp_actions['iniVal'] = np.where(df_corp_actions['temp'].str.len() > 0,
@@ -91,21 +89,18 @@ def extractCorpActions():
     df_corp_actions['temp'] = np.where(df_corp_actions['Purpose'].str.contains('Dividend'),
                                        df_corp_actions['Purpose'].apply(lambda x: x[x.find('Rs. -') + 6:]), '')
     df_corp_actions['iniVal'] = np.where(df_corp_actions['temp'].str.len() > 0, '0', df_corp_actions['iniVal'])
-    df_corp_actions['finVal'] = np.where(df_corp_actions['temp'].str.len() > 0, df_corp_actions['temp'],
-                                         df_corp_actions['finVal'])
+    df_corp_actions['finVal'] = np.where(df_corp_actions['temp'].str.len() > 0, df_corp_actions['temp'], df_corp_actions['finVal'])
 
     df_corp_actions['temp'] = np.where(df_corp_actions['Purpose'].str.contains('Split'),
                                        df_corp_actions['Purpose'].str.replace('Stock  Split From Rs.|/-', ''), '')
     df_corp_actions['temp'] = np.where(df_corp_actions['temp'].str.len() > 0,
                                        df_corp_actions['temp'].str.replace('/- to Rs.| to Rs.', ':'), '')
     df_corp_actions['iniVal'] = np.where(df_corp_actions['temp'].str.len() > 0,
-                                         df_corp_actions['temp'].apply(lambda x: x[:x.find(':')]),
-                                         df_corp_actions['iniVal'])
+                                         df_corp_actions['temp'].apply(lambda x: x[:x.find(':')]), df_corp_actions['iniVal'])
     df_corp_actions['finVal'] = np.where(df_corp_actions['temp'].str.len() > 0,
-                                         df_corp_actions['temp'].apply(lambda x: x[x.find(':') + 1:]),
-                                         df_corp_actions['finVal'])
+                                         df_corp_actions['temp'].apply(lambda x: x[x.find(':') + 1:]), df_corp_actions['finVal'])
 
-    df_corp_actions.drop('temp', axis = 1)
+    df_corp_actions.drop('temp', axis=1)
 
     print('got corporate actions')
 
@@ -139,7 +134,7 @@ def addNonTradedPrices():
             # this will just copy the values of df['open']
             # and leave NaN if len(newdf['Open']) < len(df['Open'])
             # newdf['Open'] = df['Open']
-            newdf = pd.merge(newdf,df, on=['Date'], how='outer')
+            newdf = pd.merge(newdf, df, on=['Date'], how='outer')
             newdf['Open'] = np.where(isNaN(newdf['Open']), newdf['Close'].shift(1), newdf['Open'])
             newdf['High'] = np.where(isNaN(newdf['High']), newdf['Close'].shift(1), newdf['High'])
             newdf['Low'] = np.where(isNaN(newdf['Low']), newdf['Close'].shift(1), newdf['Low'])
@@ -152,10 +147,11 @@ def addNonTradedPrices():
             newdf['Trades'] = np.where(isNaN(newdf['Trades']), 0, newdf['Trades'])
 
             if 'Unnamed: 0' in newdf.columns:
-                newdf.drop('Unnamed: 0', axis = 1, inplace = True)
+                newdf.drop('Unnamed: 0', axis=1, inplace=True)
 
             newdf.to_csv('F:/data/nse500/adjusted/{}.csv'.format(stocks[i]), index=False, index_label=None)
-        except:
+        except Exception as e:
+            print(e)
             print(stocks[i])
 
     print('added not traded prices')
@@ -170,6 +166,7 @@ def adjustDividend(date, dividend, df):
     df['VWAP'] = np.where(df['sec'] < date, df['VWAP'] - dividend, df['VWAP'])
 
     return df
+
 
 def adjustBonusSplit(date, ratio, df):
     df['Open'] = np.where(df['sec'] <= date, df['Open'] * ratio, df['Open'])
@@ -231,22 +228,20 @@ def removeLowVolumePeriods():
                 lastLowVolDateSeconds = int(time.mktime(dateparser.parse(lastLowVolDate).timetuple()))
                 df['sec'] = df['Date'].apply(lambda x: int(time.mktime(dateparser.parse(x).timetuple())))
                 selecteddf = df[df['sec'] > lastLowVolDateSeconds]
-                selecteddf.drop(['prod', 'sec'], axis = 1, inplace=True)
+                selecteddf.drop(['prod', 'sec'], axis=1, inplace=True)
                 selecteddf.set_index('Date')
                 selecteddf.to_csv('F:/data/nse500/selected/{}.csv'.format(stocks[i]), index_label=None)
             else:
-                df.drop('prod', axis = 1, inplace=True)
+                df.drop('prod', axis=1, inplace=True)
                 df.to_csv('F:/data/nse500/selected/{}.csv'.format(stocks[i]), index=False, index_label=None)
         except Exception as e:
             print(e)
             print(stocks[i])
 
-
     print('finished removing low volume stocks')
 
 
-
-get_data()
+# get_data()
 get_undownloaded_stocks()
 extractCorpActions()
 addNonTradedPrices()
