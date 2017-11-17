@@ -1,6 +1,6 @@
 import talib
 from objects import Indicator, ReqParam
-from data import getStocks
+from data import getStocks, getData
 from util import removeNaN
 import numpy as np
 
@@ -42,14 +42,15 @@ def getColumnKey(indicator):
     return switch.get(indicator)
 
 
-def getIndicatorValues(indicator: Indicator, data):
+def getIndicatorValues(indicator: Indicator, indicatorMap):
     needs = getColumnKey(indicator.name)
-    indicatorMap = {}
 
     if needs is None:
         raise ValueError('indicator ' + indicator.name + ' is not part of talib')
 
-    _, stocks = getStocks()
+    stocks = getStocks()
+    data = getData()
+
     for count, ticker in enumerate(stocks):
         df = data.get(ticker)
 
@@ -83,13 +84,9 @@ def getIndicatorValues(indicator: Indicator, data):
         elif needs == 3 or needs == 8 or needs == 9:
             indicatorMap[ticker] = df[indicator.name]
 
-    return indicatorMap
 
-
-def getRequirementData(req: ReqParam, data):
-    reqMap = {}
-
-    _, stocks = getStocks()
+def getRequirementData(req: ReqParam, data, reqMap):
+    stocks = getStocks()
     for count, ticker in enumerate(stocks):
         df = data.get(ticker)
 
@@ -113,5 +110,22 @@ def getRequirementData(req: ReqParam, data):
                 raise ValueError('Need to provide rollingPeriod')
             df['vol'] = np.where(df['Volume'] > df['Volume'].rolling(req.rollingPeriod).mean())
             reqMap[ticker + '_' + str(req.rollingPeriod)] = df['vol'].values
+        if req.condition == 6:
+            if req.indicatorPeriod is None:
+                raise ValueError('Need to provide indicator period')
+            df['NATR'] = talib.NATR(df['High'].values, df['Low'].values, df['Close'].values, req.indicatorPeriod)
+            reqMap[ticker + '_' + str(req.indicatorPeriod)] = removeNaN(df['NATR'].values)
 
     return reqMap
+
+
+def getPeriodStr(indicator: Indicator):
+    needs = getColumnKey(indicator.name)
+    if needs == 0 or needs == 1 or needs == 2 or needs == 5:
+        return '_' + str(indicator.period)
+    elif needs == 4 or needs == 7:
+        return '_' + str(indicator.fastperiod) + '_' + str(indicator.slowperiod)
+    elif needs == 6:
+        return '_' + str(indicator.timeperiod1) + '_' + str(indicator.timeperiod2) + '_' + str(indicator.timeperiod3)
+    elif needs == 3 or needs == 8 or needs == 9:
+        return ''

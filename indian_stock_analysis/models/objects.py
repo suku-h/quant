@@ -37,6 +37,7 @@ class ReqParam():
     fastPeriod = None
     slowPeriod = None
     adx_min = 0
+    natr_min = 0
     isBuy = None
 
     def __init__(self):
@@ -47,9 +48,10 @@ class ReqParam():
         self.fastPeriod = None
         self.slowPeriod = None
         self.adx_min = None
+        self.natr_min = None
         self.isBuy = None
 
     # repr function calling return str(self.__dict__)
     # then return only keys that are not None
     def __repr__(self):
-        return str({k: v for k, v in collections.OrderedDict(sorted(self.__dict__).items()) if v is not None})
+        return str({k: v for k, v in sorted(self.__dict__.items()) if v is not None})

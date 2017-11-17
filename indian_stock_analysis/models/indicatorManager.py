@@ -19,6 +19,7 @@ adxMap = {}
 chaikinMap = {}
 histMap = {}
 volMap = {}
+natrMap = {}
 
 
 def getRes(indicator: Indicator, max_buy_val, min_sell_val):
@@ -55,8 +56,12 @@ def checkRequirement(req: ReqParam, position: int=None, vals: list=None) -> bool
         if position is None or vals is None or req.isBuy is None:
             raise ValueError('Need values for position, isBuy and vals')
         return vals[position - 1] <= vals[position] if req.isBuy else vals[position - 1] >= vals[position]
+    elif req.condition == 6:
+        if position is None or vals is None or req.natr_min is None:
+            raise ValueError('Need values for position, adx and adx_min')
+        return vals[position] > req.natr_min
     else:
-        raise ValueError('Need condition needs to be between 0 & 5')
+        raise ValueError('Need condition needs to be between 0 & 6')
 
 
 def getRequirementValues(req: ReqParam, ticker, indicator: Indicator):
@@ -72,6 +77,8 @@ def getRequirementValues(req: ReqParam, ticker, indicator: Indicator):
         return volMap[ticker + '_' + str(req.rollingPeriod)]
     elif req.condition == 5:
         return indicatorMap[ticker + getPeriodStr(indicator)].values
+    elif req.condition == 6:
+        return natrMap[ticker + '_' + str(req.indicatorPeriod)]
 
 
 def addTrade(trades, ticker, date, val, volume=0, indicatorVal=0, isBuy=True):
@@ -296,4 +303,4 @@ allFiles = glob.glob(path + "\*.csv")
 data = getData()
 analyseIndicator(count)
 totalTime = int(round(time.time() * 1000)) - st
-print('Total Time:', totalTime, 'Time per loop:', totalTime/count)
+print('Total Time:', totalTime)
